@@ -1,0 +1,500 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Road Challan – New Friends Electric</title>
+
+<!-- PWA Configuration -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Road Challan">
+<meta name="theme-color" content="#00c6ff">
+<meta name="description" content="Create and manage road challans for New Friends Electric">
+
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+<style>
+:root{--bg:#0f1117;--surf:#181c27;--card:#1e2335;--border:#2a3050;--accent:#00c6ff;--gold:#f5c842;--red:#ff4e4e;--green:#25D366;--text:#e8eaf0;--muted:#7a84a0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;min-height:100vh}
+
+/* HEADER */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 22px;background:var(--surf);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.logo{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--accent)}
+.logo b{color:var(--gold)}
+.tabs{display:flex;gap:4px;background:var(--card);border-radius:9px;padding:3px}
+.tab{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;padding:6px 15px;border-radius:6px;border:none;cursor:pointer;color:var(--muted);background:none;transition:all .2s}
+.tab.on{background:var(--accent);color:#001520}
+
+/* VIEWS */
+.view{display:none}
+#v-create.active{display:grid;grid-template-columns:390px 1fr;min-height:calc(100vh - 50px)}
+#v-history.active{display:block;padding:22px;max-width:1100px;margin:0 auto}
+
+/* EDITOR */
+.editor{padding:22px 20px;background:var(--surf);border-right:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 50px)}
+.preview{padding:22px 20px;overflow-y:auto;max-height:calc(100vh - 50px)}
+
+/* FORM ELEMENTS */
+.sec{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:18px 0 8px}
+.sec:first-child{margin-top:0}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+input.f{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s;margin-bottom:10px}
+input.f:focus{border-color:var(--accent)}
+.r2{display:grid;grid-template-columns:1fr 32px 1fr;gap:8px;align-items:center;margin-bottom:10px}
+.r2 input.f{margin-bottom:0}
+.swap{height:36px;width:32px;background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:8px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.swap:hover{background:var(--gold);color:#111}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* SIGNATURE UPLOAD */
+.sig-box{border:2px dashed var(--border);border-radius:10px;padding:12px 16px;text-align:center;cursor:pointer;background:var(--card);transition:border-color .2s;position:relative;margin-bottom:10px}
+.sig-box:hover{border-color:var(--accent)}
+.sig-box img{max-height:55px;max-width:220px;object-fit:contain;display:none;margin:0 auto}
+.sig-box p{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* CHIPS */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:4px 11px;font-size:12px;cursor:pointer;color:var(--muted);transition:all .15s}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.on{border-color:var(--gold);color:var(--gold);background:#1c1800}
+
+/* MATERIAL ROWS */
+.mats{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.mrow{display:grid;grid-template-columns:1fr 85px 32px;gap:6px;align-items:center}
+.mf{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
+.mf:focus{border-color:var(--accent)}
+.del{width:32px;height:32px;border:1px solid #3a2020;background:none;color:var(--red);border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.del:hover{background:#3a2020}
+.addrow{display:grid;grid-template-columns:1fr 75px 32px;gap:6px;margin-bottom:6px}
+.addrow .mf{border-style:dashed}
+.addbtn{width:32px;height:32px;border:none;background:var(--gold);color:#111;border-radius:7px;cursor:pointer;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center}
+
+/* ACTION BUTTONS */
+.actions{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.btn{border:none;border-radius:9px;padding:10px 16px;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s}
+.btn:hover{opacity:.9;transform:translateY(-1px)}
+.b-save{background:var(--gold);color:#111}
+.b-wa{background:var(--green);color:#fff}
+.b-pdf{background:var(--accent);color:#001520}
+.b-rst{background:var(--card);color:var(--muted);border:1px solid var(--border)}
+
+/* CHALLAN PAPER */
+.plbl{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px}
+#paper{background:#fff;color:#111;border-radius:12px;padding:50px 55px;font-family:'Noto Sans',sans-serif;font-size:17px;line-height:1.8;box-shadow:0 8px 40px rgba(0,0,0,.5);max-width:800px;position:relative}
+.ph{text-align:center;margin-bottom:12px}
+.pc{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;color:#1a90d4}
+.ps{font-size:16px;color:#1a90d4;font-weight:600}
+.pm{font-size:15px;color:#1a90d4;line-height:1.7}
+.phr{border:none;border-top:2px solid #ccc;margin:12px 0}
+.pt{text-align:center;font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:#c8980a;letter-spacing:2px;margin:12px 0 6px}
+.pn{text-align:center;font-size:13px;color:#888;font-style:italic;margin-bottom:16px}
+.challan-no-box{position:absolute;top:20px;right:30px;border:2px solid #c8980a;background:#fffef5;padding:8px 16px;border-radius:6px}
+.challan-no-label{font-size:11px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.challan-no-value{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#c8980a;letter-spacing:1px}
+.pb p{margin-bottom:14px;font-size:18px;color:#222;line-height:1.85}
+.hl{background:#ffe87a;padding:1px 3px;border-radius:2px;font-weight:700}
+.pml{font-size:16px;font-weight:700;color:#555;margin-bottom:5px}
+.pmi{font-size:17px;color:#222;line-height:2;margin-bottom:20px}
+.pf{display:flex;justify-content:space-between;align-items:flex-end;margin-top:25px}
+.pd{font-size:16px;color:#333}
+.pns{font-size:14px;font-weight:800;color:#e00;line-height:1.5;margin-top:10px}
+.psig{text-align:center}
+.psn{font-size:12px;font-weight:800;color:#111;margin-bottom:2px}
+.psig img{max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto}
+.psr{font-size:11px;color:#555;border-top:1.5px solid #333;padding-top:3px;margin-top:3px;text-decoration:underline}
+
+/* HISTORY CARDS */
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+.hempty{text-align:center;padding:60px 20px;color:var(--muted);font-size:15px}
+.hcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px}
+.hcard:hover{border-color:var(--accent)44}
+.ht{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.hno{background:#0d2030;border:1px solid #00c6ff33;border-radius:18px;padding:3px 10px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:1px}
+.hdt{font-size:11px;color:var(--muted)}
+.hrt{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.hcity{flex:1}
+.hcl{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.hcn{font-size:14px;font-weight:700;color:var(--text)}
+.hsub{font-size:12px;color:var(--muted);margin-bottom:4px}
+.hm{font-size:11.5px;color:#b0b8d0;margin-bottom:10px;line-height:1.5}
+.hbtns{display:flex;gap:5px;border-top:1px solid var(--border);padding-top:9px}
+.hb{flex:1;border:none;border-radius:7px;padding:6px 4px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s}
+.hb:hover{opacity:.85;transform:translateY(-1px)}
+.hb-v{background:#0d2030;color:var(--accent);border:1px solid #00c6ff22}
+.hb-r{background:#1c1800;color:var(--gold);border:1px solid #f5c84222}
+.hb-w{background:#0d2516;color:var(--green);border:1px solid #25D36622}
+.hb-d{background:#1a0a0a;color:var(--red);border:1px solid #ff4e4e22}
+
+/* MODAL */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;padding:16px}
+.mbg.open{display:flex}
+.modal{background:var(--surf);border-radius:14px;border:1px solid var(--border);padding:20px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;position:relative}
+.mx{position:absolute;top:11px;right:11px;background:var(--card);border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.macts{display:flex;gap:8px;margin-top:12px}
+
+@media print{
+  .hdr,.editor,.plbl,.actions,.mbg,.pn,.preview-mode{display:none!important}
+  #v-create{display:block!important}
+  .preview{padding:0;max-height:none;overflow:visible}
+  #paper{box-shadow:none;border-radius:0;max-width:100%}
+  body{background:#fff}
+}
+@media(max-width:780px){
+  #v-create.active{grid-template-columns:1fr;grid-template-rows:auto auto}
+  .editor,.preview{max-height:none}
+  .editor{border-right:none;border-bottom:1px solid var(--border)}
+}
+</style>
+</head>
+<body>
+
+<div class="hdr">
+  <div class="logo">NEW FRIENDS <b>ELECTRIC</b></div>
+  <div class="tabs">
+    <button class="tab on" onclick="showTab('create',this)">✏️ New Challan</button>
+    <button class="tab" onclick="showTab('history',this)">📋 History (<span id="hcount">0</span>)</button>
+  </div>
+</div>
+
+<!-- CREATE -->
+<div id="v-create" class="view active">
+  <div class="editor">
+
+    <div class="sec">Transport Details</div>
+    <label>Vehicle Number</label>
+    <input class="f" id="vno" placeholder="e.g. WB 11 F 5366" value="WB 11 F 5366" oninput="render()"/>
+    <div class="r2">
+      <div><label>From</label><input class="f" id="from" placeholder="Origin" value="Barrackpore, Kolkata" oninput="render()"/></div>
+      <button class="swap" onclick="swap()" title="Flip">⇄</button>
+      <div><label>To</label><input class="f" id="to" placeholder="Destination" value="Rourkela, Odisha" oninput="render()"/></div>
+    </div>
+    <div class="g2">
+      <div><label>Occasion</label><input class="f" id="occ" placeholder="e.g. Mela" value="Mela" oninput="render()"/></div>
+      <div><label>Date</label><input class="f" id="dt" type="date" oninput="render()"/></div>
+    </div>
+
+    <div class="sec">Signature</div>
+    <div class="sig-box" id="sigbox" onclick="document.getElementById('sigfile').click()">
+      <input type="file" id="sigfile" accept="image/*" style="display:none" onchange="loadSig(event)"/>
+      <img id="sigimg" src="" alt=""/>
+      <p id="sighint">📷 Tap to upload your signature image</p>
+    </div>
+
+    <div class="sec">Quick Add Materials</div>
+    <div class="chips" id="chips"></div>
+
+    <div class="sec">Materials List</div>
+    <div class="mats" id="mats"></div>
+    <div class="addrow">
+      <input class="mf" id="ci" placeholder="Custom item name…"/>
+      <input class="mf" id="cq" placeholder="Qty"/>
+      <button class="addbtn" onclick="addCustom()">+</button>
+    </div>
+    <p style="font-size:11px;color:var(--muted);margin-top:4px">↑ Type and hit + to add a custom item</p>
+
+    <div class="actions">
+      <button class="btn b-save" onclick="saveChallan()">💾 Save</button>
+      <button class="btn b-wa" onclick="sendWA()">📱 WhatsApp</button>
+      <button class="btn b-pdf" onclick="window.print()">🖨 Print/PDF</button>
+      <button class="btn b-rst" onclick="reset()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="preview">
+    <div class="plbl">Live Preview</div>
+    <div id="paper"></div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="v-history" class="view">
+  <div id="hist"></div>
+</div>
+
+<!-- MODAL -->
+<div class="mbg" id="mbg" onclick="if(event.target===this)closeMod()">
+  <div class="modal">
+    <button class="mx" onclick="closeMod()">✕</button>
+    <div id="mbody"></div>
+    <div class="macts" id="macts"></div>
+  </div>
+</div>
+
+<script>
+const CAT=[
+  {n:'Iron Module Gate',u:'Set'},{n:'SMPs',u:'Pcs'},
+  {n:'Module Jhalar',u:'Pcs'},{n:'LED Street Light',u:'Pcs'},
+  {n:'Aluminium Wire',u:'Coil'},{n:'LED Bulb',u:'Pcs'},
+  {n:'Extension Cord',u:'Pcs'},{n:'MCB Switch',u:'Pcs'},
+  {n:'Cable Roll',u:'Coil'},{n:'LED Strip',u:'Mtr'},
+];
+
+let mats=[
+  {n:'Iron Module Gate',q:'10 Set'},{n:'SMPs',q:'150 Pcs'},
+  {n:'Module Jhalar',q:'24 Pcs'},{n:'LED Street Light',q:'10 Pcs'},
+  {n:'Aluminium Wire',q:'20 Coil'},
+];
+let sig='';
+let challans=JSON.parse(localStorage.getItem('challans')||'[]');
+let cnt=parseInt(localStorage.getItem('challan_cnt')||'0');
+
+// init
+document.getElementById('dt').value=new Date().toISOString().slice(0,10);
+renderChips(); renderMats(); render();
+document.getElementById('hcount').textContent=challans.length;
+
+// sig upload
+function loadSig(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    sig=ev.target.result;
+    const img=document.getElementById('sigimg');
+    img.src=sig; img.style.display='block';
+    document.getElementById('sighint').textContent='✅ Loaded – tap to change';
+    render();
+  };
+  r.readAsDataURL(f);
+}
+
+// tab switch
+function showTab(t,btn){
+  document.querySelectorAll('.view').forEach(v=>{v.classList.remove('active');v.style.display='none'});
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  const view=document.getElementById('v-'+t);
+  view.classList.add('active');
+  view.style.display='';
+  btn.classList.add('on');
+  if(t==='history') renderHistory();
+}
+
+// swap
+function swap(){
+  const f=document.getElementById('from'),t=document.getElementById('to');
+  [f.value,t.value]=[t.value,f.value]; render();
+}
+
+// chips
+function renderChips(){
+  document.getElementById('chips').innerHTML=CAT.map((c,i)=>{
+    const on=mats.some(m=>m.n===c.n);
+    return `<span class="chip${on?' on':''}" onclick="addChip(${i})">${c.n}</span>`;
+  }).join('');
+}
+function addChip(i){
+  if(!mats.some(m=>m.n===CAT[i].n)) mats.push({n:CAT[i].n,q:`1 ${CAT[i].u}`});
+  renderMats();
+}
+
+// mats
+function renderMats(){
+  document.getElementById('mats').innerHTML=mats.map((m,i)=>`
+    <div class="mrow">
+      <input class="mf" value="${m.n}" oninput="mats[${i}].n=this.value;render();renderChips()"/>
+      <input class="mf" style="text-align:center" value="${m.q}" oninput="mats[${i}].q=this.value;render()"/>
+      <button class="del" onclick="mats.splice(${i},1);renderMats()">×</button>
+    </div>`).join('');
+  renderChips(); render();
+}
+function addCustom(){
+  const n=document.getElementById('ci').value.trim(); if(!n)return;
+  mats.push({n,q:document.getElementById('cq').value.trim()||'1'});
+  document.getElementById('ci').value='';
+  document.getElementById('cq').value='';
+  renderMats();
+}
+
+// challan number generator
+function makeNo(){
+  cnt++;
+  localStorage.setItem('challan_cnt',cnt);
+  const d=new Date();
+  const M=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()];
+  const Y=String(d.getFullYear()).slice(2);
+  const D=String(d.getDate()).padStart(2,'0');
+  return `#${M}${Y}${D}${String(cnt).padStart(4,'0')}`;
+}
+
+// format date
+function fmtDate(raw){return raw?raw.split('-').reverse().join('-'):''}
+
+// render challan paper
+function render(no){
+  const v=id=>document.getElementById(id).value.trim();
+  const matStr=mats.length?mats.map(m=>`${m.n} – ${m.q}`).join(', '):'—';
+  const sigPart=sig
+    ?`<img src="${sig}" style="max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto"/>`
+    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0;letter-spacing:1px">Rakesh Shaw</div>`;
+  document.getElementById('paper').innerHTML=`
+    <div class="challan-no-box ${no?'':'preview-mode'}"><div class="challan-no-label">Challan No.</div><div class="challan-no-value">${no||'Preview'}</div></div>
+    <div class="ph">
+      <div class="pc">New Friends Electric</div>
+      <div class="ps">(R.G. Group)</div>
+      <div class="pm">Trade Reg No.: 1774 &nbsp;|&nbsp; Electrical License No: 2022176510574</div>
+      <div class="pm">Digital Lighting Gate, Digital Lighting, Name Plate Board &amp; All Types of Electrical Decoration Light.</div>
+      <div class="pm">Bas Bagan, Kolkata, Teleni Para, West Bengal 700121 &nbsp;|&nbsp; Ph: 9143190892 / 9831470370</div>
+    </div>
+    <hr class="phr"/>
+    <div class="pt">ROAD CHALLAN</div>
+    <div class="pb">
+      <p>This is to confirm that Truck No. <span class="hl">${v('vno')||'______'}</span> transporting materials belonging to <strong>"NEW FRIENDS ELECTRIC"</strong>, based in Kolkata.</p>
+      <p>The truck is <strong>coming from <span class="hl">${v('from')||'______'}</span></strong>, and is <strong>proceeding towards <span class="hl">${v('to')||'______'}</span></strong> for the occasion of <strong>${v('occ')||'______'}</strong>.</p>
+      <p>The vehicle is carrying <strong>electrical lighting and decoration materials</strong> required for the event. This notice is provided for your kind reference and necessary action.</p>
+    </div>
+    <div class="pml">Materials:</div>
+    <div class="pmi">${matStr}</div>
+    <div class="pf">
+      <div>
+        <div class="pd">Date: - ${fmtDate(v('dt'))}</div>
+        <div class="pns" style="margin-top:8px">NOT FOR SALE<br/>ONLY DISPLAY</div>
+      </div>
+      <div class="psig">
+        ${sigPart}
+        <div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">NEW FRIENDS ELECTRIC</div>
+      </div>
+    </div>`;
+}
+
+// save
+function saveChallan(){
+  const v=id=>document.getElementById(id).value.trim();
+  if(!v('vno')){alert('Enter vehicle number');return}
+  if(!v('from')||!v('to')){alert('Enter From and To cities');return}
+  if(!mats.length){alert('Add at least one material');return}
+  const no=makeNo();
+  const c={id:Date.now().toString(),challanNo:no,vehicleNo:v('vno'),
+    fromCity:v('from'),toCity:v('to'),occasion:v('occ')||'Mela',
+    date:fmtDate(v('dt')),materials:JSON.parse(JSON.stringify(mats)),
+    sig,createdAt:Date.now()};
+  challans.unshift(c);
+  localStorage.setItem('challans',JSON.stringify(challans));
+  document.getElementById('hcount').textContent=challans.length;
+  render(no);
+  alert(`✅ Saved as ${no}`);
+}
+
+// whatsapp
+function sendWA(c){
+  c=c||{challanNo:'(unsaved)',vehicleNo:document.getElementById('vno').value,
+    fromCity:document.getElementById('from').value,toCity:document.getElementById('to').value,
+    occasion:document.getElementById('occ').value||'Mela',
+    date:fmtDate(document.getElementById('dt').value),materials:mats};
+  const lines=c.materials.map(m=>`  • ${m.n||m.name} – ${m.q||m.qty}`).join('\n');
+  const msg=`🚛 *ROAD CHALLAN – New Friends Electric*\n━━━━━━━━━━━━━━━━━━━━\n📋 Challan No: ${c.challanNo}\n🚛 Vehicle: ${c.vehicleNo}\n📍 From: ${c.fromCity}\n🏁 To: ${c.toCity}\n🎪 Occasion: ${c.occasion}\n📅 Date: ${c.date}\n\n📦 *Materials:*\n${lines}\n\n━━━━━━━━━━━━━━━━━━━━\n_Trade Reg: 1774 | Lic: 2022176510574_\n_Bas Bagan, Kolkata, WB 700121_\n_Ph: 9143190892 / 9831470370_\n_NOT FOR SALE – ONLY DISPLAY_`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+// history
+function renderHistory(){
+  document.getElementById('hcount').textContent=challans.length;
+  if(!challans.length){
+    document.getElementById('hist').innerHTML='<div class="hempty">📄 No challans yet. Create one!</div>';
+    return;
+  }
+  document.getElementById('hist').innerHTML=`<div class="hgrid">${challans.map(c=>`
+    <div class="hcard">
+      <div class="ht"><span class="hno">${c.challanNo}</span><span class="hdt">${c.date}</span></div>
+      <div class="hrt">
+        <div class="hcity"><div class="hcl">FROM</div><div class="hcn">${c.fromCity}</div></div>
+        <span style="color:var(--accent);font-size:18px">→</span>
+        <div class="hcity" style="text-align:right"><div class="hcl">TO</div><div class="hcn">${c.toCity}</div></div>
+      </div>
+      <div class="hsub">🚛 ${c.vehicleNo} &nbsp;|&nbsp; 🎪 ${c.occasion}</div>
+      <div class="hm">${c.materials.map(m=>`${m.n||m.name} (${m.q||m.qty})`).join(' · ')}</div>
+      <div class="hbtns">
+        <button class="hb hb-v" onclick='viewC("${c.id}")'>👁 View</button>
+        <button class="hb hb-r" onclick='retTrip("${c.id}")'>🔄 Return</button>
+        <button class="hb hb-w" onclick='sendWA(challans.find(x=>x.id==="${c.id}"))'>📱 WA</button>
+        <button class="hb hb-d" onclick='delC("${c.id}")'>🗑 Del</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function viewC(id){
+  const c=challans.find(x=>x.id===id); if(!c)return;
+  const matStr=c.materials.map(m=>`${m.n||m.name} – ${m.q||m.qty}`).join(', ');
+  const sigPart=c.sig
+    ?`<img src="${c.sig}" style="max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto"/>`
+    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0">Rakesh Shaw</div>`;
+  document.getElementById('mbody').innerHTML=`
+    <div style="background:#fff;color:#111;border-radius:10px;padding:20px 22px;font-family:'Noto Sans',sans-serif;font-size:12px;line-height:1.6">
+      <div class="ph"><div class="pc">New Friends Electric</div><div class="ps">(R.G. Group)</div>
+      <div class="pm">Trade Reg: 1774 | Lic: 2022176510574</div><div class="pm">Bas Bagan, Kolkata, WB 700121 | Ph: 9143190892</div></div>
+      <hr class="phr"/><div class="pt">ROAD CHALLAN</div>
+      <div class="pn">Challan No: ${c.challanNo}</div>
+      <div class="pb">
+        <p>Truck <span class="hl">${c.vehicleNo}</span> from <span class="hl">${c.fromCity}</span> → <span class="hl">${c.toCity}</span> for <strong>${c.occasion}</strong>.</p>
+        <p>Carrying electrical lighting &amp; decoration materials for the event.</p>
+      </div>
+      <div class="pml">Materials:</div><div class="pmi">${matStr}</div>
+      <div class="pf">
+        <div><div class="pd">Date: - ${c.date}</div><div class="pns" style="margin-top:7px">NOT FOR SALE<br/>ONLY DISPLAY</div></div>
+        <div class="psig">${sigPart}<div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">NEW FRIENDS ELECTRIC</div></div>
+      </div>
+    </div>`;
+  document.getElementById('macts').innerHTML=`
+    <button class="btn b-wa" onclick='sendWA(challans.find(x=>x.id==="${id}"))'>📱 WhatsApp</button>
+    <button class="btn b-pdf" onclick="window.print()">🖨 Print / PDF</button>`;
+  document.getElementById('mbg').classList.add('open');
+}
+
+function retTrip(id){
+  const c=challans.find(x=>x.id===id); if(!c)return;
+  document.getElementById('vno').value=c.vehicleNo;
+  document.getElementById('from').value=c.toCity;
+  document.getElementById('to').value=c.fromCity;
+  document.getElementById('occ').value=c.occasion;
+  document.getElementById('dt').value=new Date().toISOString().slice(0,10);
+  mats=JSON.parse(JSON.stringify(c.materials));
+  if(c.sig){sig=c.sig;const img=document.getElementById('sigimg');img.src=sig;img.style.display='block';document.getElementById('sighint').textContent='✅ Loaded';}
+  renderMats();
+  showTab('create',document.querySelectorAll('.tab')[0]);
+  document.querySelectorAll('.tab')[1].classList.remove('on');
+  closeMod();
+}
+
+function delC(id){
+  if(!confirm('Delete this challan?'))return;
+  challans=challans.filter(x=>x.id!==id);
+  localStorage.setItem('challans',JSON.stringify(challans));
+  renderHistory();
+}
+
+function reset(){
+  document.getElementById('vno').value='';
+  document.getElementById('from').value='';
+  document.getElementById('to').value='';
+  document.getElementById('occ').value='';
+  document.getElementById('dt').value=new Date().toISOString().slice(0,10);
+  mats=[]; renderMats();
+}
+
+function closeMod(){document.getElementById('mbg').classList.remove('open')}
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/service-worker.js')
+      .then(registration => {
+        console.log('ServiceWorker registered:', registration.scope);
+      })
+      .catch(err => {
+        console.log('ServiceWorker registration failed:', err);
+      });
+  });
+}
+
+// Install prompt for PWA
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // You can show an install button here if you want
+  console.log('PWA install available');
+});
+</script>
+</body>
+</html>
