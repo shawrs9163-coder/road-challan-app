@@ -69,7 +69,11 @@ input.f:focus{border-color:var(--accent)}
 .mf:focus{border-color:var(--accent)}
 .del{width:32px;height:32px;border:1px solid #3a2020;background:none;color:var(--red);border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
 .del:hover{background:#3a2020}
-.addrow{display:grid;grid-template-columns:1fr 75px 32px;gap:6px;margin-bottom:6px}
+.suggest-item{padding:9px 14px;font-size:13px;color:var(--text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.suggest-item:last-child{border-bottom:none}
+.suggest-item:hover,.suggest-item:active{background:var(--accent);color:#001520}
+.suggest-item .sfreq{font-size:10px;opacity:0.6;font-family:'Rajdhani',sans-serif;font-weight:700}
+.suggest-item .smatch{color:var(--gold)}
 .addrow .mf{border-style:dashed}
 .addbtn{width:32px;height:32px;border:none;background:var(--gold);color:#111;border-radius:7px;cursor:pointer;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center}
 
@@ -185,17 +189,18 @@ input.f:focus{border-color:var(--accent)}
       <p id="sighint">📷 Tap to upload your signature image</p>
     </div>
 
-    <div class="sec">Quick Add Materials</div>
-    <div class="chips" id="chips"></div>
-
     <div class="sec">Materials List</div>
     <div class="mats" id="mats"></div>
     <div class="addrow">
-      <input class="mf" id="ci" placeholder="Custom item name…"/>
-      <input class="mf" id="cq" placeholder="Qty"/>
+      <div style="position:relative;width:100%">
+        <input class="mf" id="ci" placeholder="Type item name or pick below…" style="width:100%" oninput="handleSuggest(this.value)" autocomplete="off"/>
+        <div id="suggest-drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:0 0 8px 8px;z-index:100;max-height:180px;overflow-y:auto"></div>
+      </div>
+      <input class="mf" id="cq" placeholder="Qty" onkeydown="if(event.key==='Enter')addCustom()"/>
       <button class="addbtn" onclick="addCustom()">+</button>
     </div>
-    <p style="font-size:11px;color:var(--muted);margin-top:4px">↑ Type and hit + to add a custom item</p>
+    <div class="sec" style="margin-top:14px">Suggestions</div>
+    <div class="chips" id="chips"></div>
 
     <div class="actions">
       <button class="btn b-save" onclick="saveChallan()">💾 Save</button>
@@ -251,11 +256,18 @@ input.f:focus{border-color:var(--accent)}
 
 <script>
 const DEFAULT_CAT=[
-  {n:'Iron Module Gate',u:'Set'},{n:'SMPs',u:'Pcs'},
-  {n:'Module Jhalar',u:'Pcs'},{n:'LED Street Light',u:'Pcs'},
-  {n:'Aluminium Wire',u:'Coil'},{n:'LED Bulb',u:'Pcs'},
-  {n:'Extension Cord',u:'Pcs'},{n:'MCB Switch',u:'Pcs'},
-  {n:'Cable Roll',u:'Coil'},{n:'LED Strip',u:'Mtr'},
+  {n:'LED Board',u:'Pcs',f:6},{n:'Iron Module Gate',u:'Set',f:6},{n:'SMPS',u:'Pcs',f:6},
+  {n:'12V Transformer',u:'Pcs',f:5},{n:'Cable',u:'Coil',f:5},{n:'Aluminium Wire',u:'Coil',f:5},
+  {n:'LED Module Tree',u:'Pcs',f:4},{n:'Module Jhalar',u:'Pcs',f:4},{n:'LED Metal',u:'Pcs',f:4},{n:'12mm Wire',u:'Coil',f:4},
+  {n:'Iron Pipe',u:'Pcs',f:3},{n:'Mechanical (Full Set)',u:'Set',f:3},{n:'Ladder',u:'Pcs',f:3},
+  {n:'LED Street Light',u:'Pcs',f:2},{n:'LED Module Trolley Set',u:'Set',f:2},{n:'40W LED Tube',u:'Pcs',f:2},
+  {n:'Sodium Pole Light',u:'Pcs',f:2},{n:'Gear Box',u:'Pcs',f:2},{n:'Pole Box',u:'Pcs',f:2},
+  {n:'RGB Dropping',u:'Pcs',f:2},{n:'LED Belt',u:'Mtr',f:2},{n:'LED Diamond',u:'Pcs',f:2},
+  {n:'LED Small Bell',u:'Pcs',f:2},{n:'LED Big Bell',u:'Pcs',f:2},{n:'LED Star',u:'Pcs',f:2},
+  {n:'1.5mm Copper Wire',u:'Coil',f:2},
+  {n:'300A Panel',u:'Pcs',f:1},{n:'250W Amplifier',u:'Pcs',f:1},{n:'Iron Tast',u:'Pcs',f:1},
+  {n:'Metal Poll',u:'Pcs',f:1},{n:'1000W Twin Metal',u:'Pcs',f:1},{n:'200W LED Metal',u:'Pcs',f:1},
+  {n:'400W Metal',u:'Pcs',f:1},
 ];
 let CAT=[];
 let mats=[];
@@ -273,7 +285,7 @@ cnt=lsGet('challan_cnt',0)||0;
 
 // init
 document.getElementById('dt').value=new Date().toISOString().slice(0,10);
-renderChips(); renderMats(); render();
+renderChips(''); renderMats(); render();
 document.getElementById('hcount').textContent=challans.length;
 
 // sig upload
@@ -305,7 +317,7 @@ function showTab(t,btn){
 // quick items manager
 function saveCAT(){
   lsSet('quick_items',CAT);
-  renderChips();
+  renderChips('');
   renderQuickItems();
 }
 
@@ -348,17 +360,63 @@ function swap(){
   [f.value,t.value]=[t.value,f.value]; render();
 }
 
-// chips
-function renderChips(){
-  document.getElementById('chips').innerHTML=CAT.map((c,i)=>{
-    const on=mats.some(m=>m.n===c.n);
-    return `<span class="chip${on?' on':''}" onclick="addChip(${i})">${c.n}</span>`;
+// chips — shows top items by frequency when not typing
+function renderChips(filter=''){
+  const alreadyAdded=name=>mats.some(m=>m.n.toLowerCase()===name.toLowerCase());
+  let list;
+  if(filter){
+    const f=filter.toLowerCase();
+    list=CAT.filter(c=>c.n.toLowerCase().includes(f));
+  } else {
+    // sort by frequency desc, show top 12
+    list=[...CAT].sort((a,b)=>(b.f||0)-(a.f||0)).slice(0,12);
+  }
+  const el=document.getElementById('chips');
+  if(!list.length){el.innerHTML=`<span style="font-size:12px;color:var(--muted)">No matches found</span>`;return;}
+  el.innerHTML=list.map(c=>{
+    const on=alreadyAdded(c.n);
+    const freq=c.f?`<span style="font-size:10px;opacity:0.5;margin-left:4px">×${c.f}</span>`:'';
+    return `<span class="chip${on?' on':''}" onclick="pickSuggest('${c.n.replace(/'/g,"\\'")}',false)">${c.n}${freq}</span>`;
   }).join('');
 }
-function addChip(i){
-  if(!mats.some(m=>m.n===CAT[i].n)) mats.push({n:CAT[i].n,q:`1 ${CAT[i].u}`});
-  renderMats();
+
+// dropdown suggestion while typing
+function handleSuggest(val){
+  renderChips(val); // update chips area too
+  const drop=document.getElementById('suggest-drop');
+  const f=val.trim().toLowerCase();
+  if(!f){drop.style.display='none';return;}
+  const matches=CAT.filter(c=>c.n.toLowerCase().startsWith(f))
+    .concat(CAT.filter(c=>!c.n.toLowerCase().startsWith(f)&&c.n.toLowerCase().includes(f)))
+    .slice(0,8);
+  if(!matches.length){drop.style.display='none';return;}
+  drop.style.display='block';
+  drop.innerHTML=matches.map(c=>{
+    // bold the matching part
+    const idx=c.n.toLowerCase().indexOf(f);
+    const before=c.n.slice(0,idx);
+    const match=c.n.slice(idx,idx+f.length);
+    const after=c.n.slice(idx+f.length);
+    const freq=c.f?`<span class="sfreq">used ${c.f}×</span>`:'';
+    return `<div class="suggest-item" onclick="pickSuggest('${c.n.replace(/'/g,"\\'")}',true)">
+      <span>${before}<strong>${match}</strong>${after}</span>${freq}
+    </div>`;
+  }).join('');
 }
+
+function pickSuggest(name, fromDrop){
+  document.getElementById('ci').value=name;
+  document.getElementById('suggest-drop').style.display='none';
+  document.getElementById('cq').focus();
+  renderChips('');
+}
+
+// hide dropdown when clicking outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#ci')&&!e.target.closest('#suggest-drop')){
+    document.getElementById('suggest-drop').style.display='none';
+  }
+});
 
 // mats
 function renderMats(){
@@ -368,13 +426,18 @@ function renderMats(){
       <input class="mf" style="text-align:center" value="${m.q}" oninput="mats[${i}].q=this.value;render()"/>
       <button class="del" onclick="mats.splice(${i},1);renderMats()">×</button>
     </div>`).join('');
-  renderChips(); render();
+  renderChips(''); render();
 }
 function addCustom(){
   const n=document.getElementById('ci').value.trim(); if(!n)return;
-  mats.push({n,q:document.getElementById('cq').value.trim()||'1'});
+  const q=document.getElementById('cq').value.trim()||'';
+  // check if it matches a known item to get unit
+  const known=CAT.find(c=>c.n.toLowerCase()===n.toLowerCase());
+  mats.push({n:known?known.n:n, q:q||(known?`1 ${known.u}`:'1')});
   document.getElementById('ci').value='';
   document.getElementById('cq').value='';
+  document.getElementById('suggest-drop').style.display='none';
+  renderChips('');
   renderMats();
 }
 
