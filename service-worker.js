@@ -1,6 +1,6 @@
-const CACHE_NAME = 'road-challan-v3';
+const CACHE_NAME = 'road-challan-v4';
 const urlsToCache = [
-  './road-challan-app.html',
+  './index.html',
   './manifest.json'
 ];
 
