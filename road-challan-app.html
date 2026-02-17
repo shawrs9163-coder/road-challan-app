@@ -32,6 +32,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 .view{display:none}
 #v-create.active{display:grid;grid-template-columns:390px 1fr;min-height:calc(100vh - 50px)}
 #v-history.active{display:block;padding:22px;max-width:1100px;margin:0 auto}
+#v-quickitems.active{display:block}
 
 /* EDITOR */
 .editor{padding:22px 20px;background:var(--surf);border-right:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 50px)}
@@ -156,6 +157,7 @@ input.f:focus{border-color:var(--accent)}
   <div class="tabs">
     <button class="tab on" onclick="showTab('create',this)">✏️ New Challan</button>
     <button class="tab" onclick="showTab('history',this)">📋 History (<span id="hcount">0</span>)</button>
+    <button class="tab" onclick="showTab('quickitems',this)">⚡ Quick Items</button>
   </div>
 </div>
 
@@ -165,14 +167,14 @@ input.f:focus{border-color:var(--accent)}
 
     <div class="sec">Transport Details</div>
     <label>Vehicle Number</label>
-    <input class="f" id="vno" placeholder="e.g. WB 11 F 5366" value="WB 11 F 5366" oninput="render()"/>
+    <input class="f" id="vno" placeholder="e.g. WB 11 F 5366" value="" oninput="render()"/>
     <div class="r2">
-      <div><label>From</label><input class="f" id="from" placeholder="Origin" value="Barrackpore, Kolkata" oninput="render()"/></div>
+      <div><label>From</label><input class="f" id="from" placeholder="Origin" value="" oninput="render()"/></div>
       <button class="swap" onclick="swap()" title="Flip">⇄</button>
-      <div><label>To</label><input class="f" id="to" placeholder="Destination" value="Rourkela, Odisha" oninput="render()"/></div>
+      <div><label>To</label><input class="f" id="to" placeholder="Destination" value="" oninput="render()"/></div>
     </div>
     <div class="g2">
-      <div><label>Occasion</label><input class="f" id="occ" placeholder="e.g. Mela" value="Mela" oninput="render()"/></div>
+      <div><label>Occasion</label><input class="f" id="occ" placeholder="e.g. Mela" value="" oninput="render()"/></div>
       <div><label>Date</label><input class="f" id="dt" type="date" oninput="render()"/></div>
     </div>
 
@@ -214,6 +216,30 @@ input.f:focus{border-color:var(--accent)}
   <div id="hist"></div>
 </div>
 
+<!-- QUICK ITEMS MANAGER -->
+<div id="v-quickitems" class="view">
+  <div style="max-width:700px;margin:0 auto;padding:22px">
+    <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:6px">⚡ Quick Add Items</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">These appear as chips in New Challan for fast material adding. Add your own or remove ones you don't need.</p>
+
+    <!-- Add new quick item -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Add New Item</div>
+      <div style="display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:center">
+        <input class="mf" id="qi-name" placeholder="Item name e.g. LED Panel" style="width:100%"/>
+        <input class="mf" id="qi-unit" placeholder="Unit e.g. Pcs"/>
+        <button class="addbtn" onclick="addQuickItem()" style="width:auto;padding:0 16px;font-size:14px;font-family:'Rajdhani',sans-serif;font-weight:700">+ Add</button>
+      </div>
+    </div>
+
+    <!-- Existing quick items list -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Current Items (<span id="qi-count">0</span>)</div>
+      <div id="qi-list"></div>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL -->
 <div class="mbg" id="mbg" onclick="if(event.target===this)closeMod()">
   <div class="modal">
@@ -224,22 +250,26 @@ input.f:focus{border-color:var(--accent)}
 </div>
 
 <script>
-const CAT=[
+const DEFAULT_CAT=[
   {n:'Iron Module Gate',u:'Set'},{n:'SMPs',u:'Pcs'},
   {n:'Module Jhalar',u:'Pcs'},{n:'LED Street Light',u:'Pcs'},
   {n:'Aluminium Wire',u:'Coil'},{n:'LED Bulb',u:'Pcs'},
   {n:'Extension Cord',u:'Pcs'},{n:'MCB Switch',u:'Pcs'},
   {n:'Cable Roll',u:'Coil'},{n:'LED Strip',u:'Mtr'},
 ];
-
-let mats=[
-  {n:'Iron Module Gate',q:'10 Set'},{n:'SMPs',q:'150 Pcs'},
-  {n:'Module Jhalar',q:'24 Pcs'},{n:'LED Street Light',q:'10 Pcs'},
-  {n:'Aluminium Wire',q:'20 Coil'},
-];
+let CAT=[];
+let mats=[];
 let sig='';
-let challans=JSON.parse(localStorage.getItem('challans')||'[]');
-let cnt=parseInt(localStorage.getItem('challan_cnt')||'0');
+let challans=[];
+let cnt=0;
+
+// safe localStorage wrapper
+function lsGet(key,fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}catch(e){return fallback;}}
+function lsSet(key,val){try{localStorage.setItem(key,JSON.stringify(val));}catch(e){}}
+
+CAT=lsGet('quick_items',DEFAULT_CAT);
+challans=lsGet('challans',[]);
+cnt=lsGet('challan_cnt',0)||0;
 
 // init
 document.getElementById('dt').value=new Date().toISOString().slice(0,10);
@@ -269,6 +299,47 @@ function showTab(t,btn){
   view.style.display='';
   btn.classList.add('on');
   if(t==='history') renderHistory();
+  if(t==='quickitems') renderQuickItems();
+}
+
+// quick items manager
+function saveCAT(){
+  lsSet('quick_items',CAT);
+  renderChips();
+  renderQuickItems();
+}
+
+function addQuickItem(){
+  const name=document.getElementById('qi-name').value.trim();
+  const unit=document.getElementById('qi-unit').value.trim()||'Pcs';
+  if(!name){alert('Enter an item name');return;}
+  if(CAT.some(c=>c.n.toLowerCase()===name.toLowerCase())){alert('Item already exists!');return;}
+  CAT.push({n:name,u:unit});
+  saveCAT();
+  document.getElementById('qi-name').value='';
+  document.getElementById('qi-unit').value='';
+}
+
+function removeQuickItem(i){
+  if(!confirm(`Remove "${CAT[i].n}"?`))return;
+  CAT.splice(i,1);
+  saveCAT();
+}
+
+function renderQuickItems(){
+  document.getElementById('qi-count').textContent=CAT.length;
+  if(!CAT.length){
+    document.getElementById('qi-list').innerHTML=`<div style="text-align:center;padding:30px;color:var(--muted);font-size:14px">No quick items yet. Add one above!</div>`;
+    return;
+  }
+  document.getElementById('qi-list').innerHTML=CAT.map((c,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surf);border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+      <div>
+        <span style="font-size:14px;font-weight:600;color:var(--text)">${c.n}</span>
+        <span style="font-size:12px;color:var(--muted);margin-left:8px">· ${c.u}</span>
+      </div>
+      <button onclick="removeQuickItem(${i})" style="background:#1a0a0a;border:1px solid #ff4e4e33;color:var(--red);border-radius:7px;padding:5px 12px;cursor:pointer;font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:700">🗑 Remove</button>
+    </div>`).join('');
 }
 
 // swap
@@ -370,7 +441,8 @@ function saveChallan(){
     date:fmtDate(v('dt')),materials:JSON.parse(JSON.stringify(mats)),
     sig,createdAt:Date.now()};
   challans.unshift(c);
-  localStorage.setItem('challans',JSON.stringify(challans));
+  lsSet('challans',challans);
+  lsSet('challan_cnt',cnt);
   document.getElementById('hcount').textContent=challans.length;
   render(no);
   alert(`✅ Saved as ${no}`);
@@ -459,7 +531,7 @@ function retTrip(id){
 function delC(id){
   if(!confirm('Delete this challan?'))return;
   challans=challans.filter(x=>x.id!==id);
-  localStorage.setItem('challans',JSON.stringify(challans));
+  lsSet('challans',challans);
   renderHistory();
 }
 
