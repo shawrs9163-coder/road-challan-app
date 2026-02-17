@@ -2,20 +2,21 @@
   "name": "Road Challan - New Friends Electric",
   "short_name": "Road Challan",
   "description": "Create and manage road challans for New Friends Electric",
-  "start_url": "/road-challan-app.html",
+  "start_url": "./road-challan-app.html",
+  "scope": "./",
   "display": "standalone",
   "background_color": "#0f1117",
   "theme_color": "#00c6ff",
   "orientation": "portrait-primary",
   "icons": [
     {
-      "src": "icon-192.png",
+      "src": "./icon-192.png",
       "sizes": "192x192",
       "type": "image/png",
       "purpose": "any maskable"
     },
     {
-      "src": "icon-512.png",
+      "src": "./icon-512.png",
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"

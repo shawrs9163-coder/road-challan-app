@@ -1,7 +1,7 @@
-const CACHE_NAME = 'road-challan-v1';
+const CACHE_NAME = 'road-challan-v2';
 const urlsToCache = [
-  '/road-challan-app.html',
-  'https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Noto+Sans:wght@400;500;600&display=swap'
+  './road-challan-app.html',
+  './manifest.json'
 ];
 
 // Install event - cache files
