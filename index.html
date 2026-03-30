@@ -15,10 +15,84 @@
 <meta name="description" content="Create and manage road challans for New Friends Electric">
 
 <link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, setDoc as fsSetDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCD-17_xQmS76OKAoW1lx9DPu6dhMOU3lI",
+  authDomain: "rd-chalan.firebaseapp.com",
+  projectId: "rd-chalan",
+  storageBucket: "rd-chalan.firebasestorage.app",
+  messagingSenderId: "1053172467969",
+  appId: "1:1053172467969:web:3db8d4599d8d8045157300"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// expose to global scope — paths are workspace-scoped, set after workspace is chosen
+window._db = db;
+window._fsDoc = doc;
+window._fsSetDoc = setDoc;
+window._fsDeleteDoc = deleteDoc;
+window._fsOnSnapshot = onSnapshot;
+window._fsRunTransaction = runTransaction;
+window._fsGetDoc = getDoc;
+window._fsCollection = collection;
+window._firebaseReady = true;
+
+// start sync — only if workspace already chosen (returning user)
+document.addEventListener('DOMContentLoaded', () => {
+  if(window._syncPending && window.startFirebaseSync) window.startFirebaseSync();
+});
+
+// one-time migration helper
+window.migrateLocalToFirestore = async function(db, fsDoc, fsSetDoc, wsCode){
+  const key = 'fs_migrated_'+wsCode;
+  if(localStorage.getItem(key)) return;
+  let local = [];
+  try { local = JSON.parse(localStorage.getItem('challans')||'[]'); } catch(e){}
+  if(!local.length){ localStorage.setItem(key,'1'); return; }
+  console.log(`Migrating ${local.length} challans to Firestore workspace ${wsCode}…`);
+  for(const c of local){
+    await fsSetDoc(fsDoc(db,'workspaces',wsCode,'challans',c.id), c);
+  }
+  localStorage.setItem(key,'1');
+  console.log('Migration done.');
+};
+</script>
 <style>
 :root{--bg:#0f1117;--surf:#181c27;--card:#1e2335;--border:#2a3050;--accent:#00c6ff;--gold:#f5c842;--red:#ff4e4e;--green:#25D366;--text:#e8eaf0;--muted:#7a84a0}
 *{box-sizing:border-box;margin:0;padding:0}
 body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;min-height:100vh}
+
+/* WORKSPACE SCREEN */
+#ws-screen{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px}
+.ws-box{background:var(--surf);border:1px solid var(--border);border-radius:18px;padding:32px 28px;max-width:400px;width:100%;text-align:center}
+.ws-logo{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.ws-logo b{color:var(--gold)}
+.ws-title{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:var(--text);margin-bottom:6px}
+.ws-sub{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.6}
+.ws-divider{display:flex;align-items:center;gap:10px;margin:20px 0;color:var(--muted);font-size:12px}
+.ws-divider::before,.ws-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.ws-code-display{background:var(--card);border:2px solid var(--gold);border-radius:12px;padding:16px;margin:16px 0;display:none}
+.ws-code-val{font-family:'Rajdhani',sans-serif;font-size:36px;font-weight:700;color:var(--gold);letter-spacing:4px}
+.ws-code-hint{font-size:11px;color:var(--muted);margin-top:4px}
+.ws-btn{width:100%;border:none;border-radius:10px;padding:13px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all .15s}
+.ws-btn:hover{opacity:.9;transform:translateY(-1px)}
+.ws-btn-create{background:var(--accent);color:#001520}
+.ws-btn-join{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.ws-btn-confirm{background:var(--gold);color:#111;display:none}
+.ws-input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:12px 16px;font-size:20px;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:4px;text-align:center;outline:none;text-transform:uppercase;margin-bottom:10px;display:none}
+.ws-input:focus{border-color:var(--accent)}
+.ws-input::placeholder{letter-spacing:1px;font-size:14px;font-weight:400;text-transform:none}
+.ws-err{font-size:12px;color:var(--red);margin-top:-6px;margin-bottom:8px;display:none}
+
+/* HEADER workspace badge */
+.ws-badge{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--gold);background:#1c1800;border:1px solid #f5c84233;border-radius:6px;padding:3px 8px;cursor:pointer;letter-spacing:1px}
 
 /* HEADER */
 .hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 22px;background:var(--surf);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
@@ -129,6 +203,7 @@ input.f:focus{border-color:var(--accent)}
 .hb{flex:1;border:none;border-radius:7px;padding:6px 4px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s}
 .hb:hover{opacity:.85;transform:translateY(-1px)}
 .hb-v{background:#0d2030;color:var(--accent);border:1px solid #00c6ff22}
+.hb-e{background:#0d1a2e;color:#a78bfa;border:1px solid #a78bfa22}
 .hb-r{background:#1c1800;color:var(--gold);border:1px solid #f5c84222}
 .hb-w{background:#0d2516;color:var(--green);border:1px solid #25D36622}
 .hb-d{background:#1a0a0a;color:var(--red);border:1px solid #ff4e4e22}
@@ -156,12 +231,44 @@ input.f:focus{border-color:var(--accent)}
 </head>
 <body>
 
+<!-- WORKSPACE SETUP SCREEN -->
+<div id="ws-screen">
+  <div class="ws-box">
+    <div class="ws-logo">NEW FRIENDS <b>ELECTRIC</b></div>
+    <div class="ws-title">Road Challan</div>
+    <div class="ws-sub">Create a workspace to get started, or join an existing one with a code.</div>
+
+    <button class="ws-btn ws-btn-create" onclick="wsCreate()">🏢 Create New Workspace</button>
+
+    <div class="ws-code-display" id="ws-new-display">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;letter-spacing:1px">YOUR WORKSPACE CODE</div>
+      <div class="ws-code-val" id="ws-new-code"></div>
+      <div class="ws-code-hint">Share this code with your team so they can join</div>
+    </div>
+
+    <button class="ws-btn ws-btn-confirm" id="ws-confirm-btn" onclick="wsConfirm()">✅ Enter Workspace</button>
+
+    <div class="ws-divider">or join existing</div>
+
+    <input class="ws-input" id="ws-join-input" placeholder="Enter workspace code" maxlength="8" oninput="this.value=this.value.toUpperCase()"/>
+    <div class="ws-err" id="ws-err">Invalid code — no workspace found</div>
+    <button class="ws-btn ws-btn-join" onclick="wsJoin()">🔗 Join Workspace</button>
+  </div>
+</div>
+
 <div class="hdr">
   <div class="logo">NEW FRIENDS <b>ELECTRIC</b></div>
-  <div class="tabs">
-    <button class="tab on" onclick="showTab('create',this)">✏️ New Challan</button>
-    <button class="tab" onclick="showTab('history',this)">📋 History (<span id="hcount">0</span>)</button>
-    <button class="tab" onclick="showTab('quickitems',this)">⚡ Quick Items</button>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="ws-badge" id="ws-badge" onclick="wsShowCode()" title="Your workspace code">🏢 <span id="ws-badge-code"></span></span>
+    <div id="sync-status" style="font-size:11px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:5px">
+      <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block"></span>
+      <span id="sync-txt">Connecting…</span>
+    </div>
+    <div class="tabs">
+      <button class="tab on" onclick="showTab('create',this)">✏️ New Challan</button>
+      <button class="tab" onclick="showTab('history',this)">📋 History (<span id="hcount">0</span>)</button>
+      <button class="tab" onclick="showTab('quickitems',this)">⚡ Quick Items</button>
+    </div>
   </div>
 </div>
 
@@ -274,6 +381,7 @@ let mats=[];
 let sig='';
 let challans=[];
 let cnt=0;
+let editingId=null;
 
 // safe localStorage wrapper
 function lsGet(key,fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}catch(e){return fallback;}}
@@ -287,6 +395,114 @@ cnt=lsGet('challan_cnt',0)||0;
 document.getElementById('dt').value=new Date().toISOString().slice(0,10);
 renderChips(''); renderMats(); render();
 document.getElementById('hcount').textContent=challans.length;
+
+// ── WORKSPACE ──────────────────────────────────────────────
+let wsCode = localStorage.getItem('ws_code') || null;
+
+function wsGenCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+}
+
+function wsCreate(){
+  const code = wsGenCode();
+  document.getElementById('ws-new-code').textContent = code;
+  document.getElementById('ws-new-display').style.display = 'block';
+  document.getElementById('ws-confirm-btn').style.display = 'block';
+  document.getElementById('ws-confirm-btn').dataset.code = code;
+  document.getElementById('ws-join-input').style.display = 'none';
+  document.getElementById('ws-err').style.display = 'none';
+}
+
+async function wsJoin(){
+  const input = document.getElementById('ws-join-input');
+  input.style.display = 'block';
+  const code = input.value.trim().toUpperCase();
+  if(!code){ input.focus(); return; }
+  if(code.length < 4){ showWsErr('Code too short'); return; }
+  // verify workspace exists in Firestore
+  if(window._firebaseReady){
+    const snap = await window._fsGetDoc(window._fsDoc(window._db,'workspaces',code));
+    if(!snap.exists()){
+      // also accept if challans subcollection has docs (legacy)
+      showWsErr('Invalid code — no workspace found');
+      return;
+    }
+  }
+  wsEnter(code);
+}
+
+function wsConfirm(){
+  const code = document.getElementById('ws-confirm-btn').dataset.code;
+  // create workspace doc in Firestore
+  if(window._firebaseReady){
+    window._fsSetDoc(window._fsDoc(window._db,'workspaces',code),{created:Date.now(),code});
+  }
+  wsEnter(code);
+}
+
+function wsEnter(code){
+  wsCode = code;
+  localStorage.setItem('ws_code', code);
+  document.getElementById('ws-screen').style.display = 'none';
+  document.getElementById('ws-badge-code').textContent = code;
+  // now wire up Firestore paths with this workspace
+  window._challansCol = window._fsCollection(window._db,'workspaces',code,'challans');
+  window._metaDoc = window._fsDoc(window._db,'workspaces',code,'meta','counter');
+  if(window._firebaseReady) window.startFirebaseSync();
+  else window._syncPending = true;
+}
+
+function wsShowCode(){
+  alert(`Your workspace code:\n\n${wsCode}\n\nShare this with your team to sync challans.`);
+}
+
+function showWsErr(msg){
+  const el = document.getElementById('ws-err');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(()=>el.style.display='none', 3000);
+}
+
+// ── INIT ───────────────────────────────────────────────────
+// If workspace already saved, skip the screen
+if(wsCode){
+  document.getElementById('ws-screen').style.display = 'none';
+  document.getElementById('ws-badge-code').textContent = wsCode;
+  document.addEventListener('DOMContentLoaded', ()=>{
+    if(window._firebaseReady){
+      window._challansCol = window._fsCollection(window._db,'workspaces',wsCode,'challans');
+      window._metaDoc = window._fsDoc(window._db,'workspaces',wsCode,'meta','counter');
+      window.startFirebaseSync();
+    } else {
+      window._syncPending = true;
+    }
+  });
+} else {
+  document.getElementById('ws-join-input').style.display = 'none';
+}
+
+// Firebase sync — called once workspace is set and Firebase is ready
+window.startFirebaseSync = function(){
+  setSyncStatus('syncing');
+  // one-time migration from localStorage
+  window.migrateLocalToFirestore(window._db, window._fsDoc, window._fsSetDoc, wsCode);
+  // Real-time listener: whenever Firestore changes, update local array + UI
+  window._fsOnSnapshot(window._challansCol, snapshot => {
+    challans = [];
+    snapshot.forEach(d => challans.push(d.data()));
+    // sort newest first
+    challans.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    lsSet('challans', challans); // keep local backup
+    document.getElementById('hcount').textContent = challans.length;
+    const activeHistory = document.getElementById('v-history').classList.contains('active');
+    if(activeHistory) renderHistory();
+    setSyncStatus('online');
+  }, err => {
+    console.error('Firestore sync error', err);
+    setSyncStatus('offline');
+  });
+};
+if(window._syncPending) window.startFirebaseSync();
 
 // sig upload
 function loadSig(e){
@@ -441,15 +657,33 @@ function addCustom(){
   renderMats();
 }
 
-// challan number generator
-function makeNo(){
-  cnt++;
-  localStorage.setItem('challan_cnt',cnt);
+function setSyncStatus(state){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-txt');
+  if(state==='online'){dot.style.background='#25D366';txt.textContent='Synced';}
+  else if(state==='syncing'){dot.style.background='#f5c842';txt.textContent='Syncing…';}
+  else{dot.style.background='#ff4e4e';txt.textContent='Offline';}
+}
+
+// challan number generator — uses Firestore atomic counter so no duplicates across devices
+async function makeNo(){
+  if(!window._firebaseReady) {
+    // fallback if offline
+    cnt++; lsSet('challan_cnt',cnt);
+    const d=new Date();
+    const M=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()];
+    return `#${M}${String(d.getFullYear()).slice(2)}${String(d.getDate()).padStart(2,'0')}${String(cnt).padStart(4,'0')}`;
+  }
+  const newCnt = await window._fsRunTransaction(window._db, async tx => {
+    const snap = await tx.get(window._metaDoc);
+    const next = (snap.exists() ? snap.data().cnt : 0) + 1;
+    tx.set(window._metaDoc, {cnt: next});
+    return next;
+  });
+  cnt = newCnt;
   const d=new Date();
   const M=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()];
-  const Y=String(d.getFullYear()).slice(2);
-  const D=String(d.getDate()).padStart(2,'0');
-  return `#${M}${Y}${D}${String(cnt).padStart(4,'0')}`;
+  return `#${M}${String(d.getFullYear()).slice(2)}${String(d.getDate()).padStart(2,'0')}${String(newCnt).padStart(4,'0')}`;
 }
 
 // format date
@@ -493,20 +727,44 @@ function render(no){
 }
 
 // save
-function saveChallan(){
+async function saveChallan(){
   const v=id=>document.getElementById(id).value.trim();
   if(!v('vno')){alert('Enter vehicle number');return}
   if(!v('from')||!v('to')){alert('Enter From and To cities');return}
   if(!mats.length){alert('Add at least one material');return}
-  const no=makeNo();
+
+  if(editingId){
+    const idx=challans.findIndex(x=>x.id===editingId);
+    if(idx>-1){
+      const updated={...challans[idx],vehicleNo:v('vno'),fromCity:v('from'),toCity:v('to'),
+        occasion:v('occ')||'Mela',date:fmtDate(v('dt')),
+        materials:JSON.parse(JSON.stringify(mats)),sig};
+      if(window._firebaseReady){
+        setSyncStatus('syncing');
+        await window._fsSetDoc(window._fsDoc(window._db,'challans',updated.id), updated);
+      } else {
+        challans[idx]=updated; lsSet('challans',challans);
+      }
+      render(updated.challanNo);
+      alert(`✅ Updated ${updated.challanNo}`);
+      editingId=null;
+      document.querySelector('.b-save').textContent='💾 Save';
+    }
+    return;
+  }
+
+  const no = await makeNo();
   const c={id:Date.now().toString(),challanNo:no,vehicleNo:v('vno'),
     fromCity:v('from'),toCity:v('to'),occasion:v('occ')||'Mela',
     date:fmtDate(v('dt')),materials:JSON.parse(JSON.stringify(mats)),
     sig,createdAt:Date.now()};
-  challans.unshift(c);
-  lsSet('challans',challans);
-  lsSet('challan_cnt',cnt);
-  document.getElementById('hcount').textContent=challans.length;
+  if(window._firebaseReady){
+    setSyncStatus('syncing');
+    await window._fsSetDoc(window._fsDoc(window._db,'challans',c.id), c);
+  } else {
+    challans.unshift(c); lsSet('challans',challans);
+    document.getElementById('hcount').textContent=challans.length;
+  }
   render(no);
   alert(`✅ Saved as ${no}`);
 }
@@ -541,6 +799,7 @@ function renderHistory(){
       <div class="hm">${c.materials.map(m=>`${m.n||m.name} (${m.q||m.qty})`).join(' · ')}</div>
       <div class="hbtns">
         <button class="hb hb-v" onclick='viewC("${c.id}")'>👁 View</button>
+        <button class="hb hb-e" onclick='editC("${c.id}")'>✏️ Edit</button>
         <button class="hb hb-r" onclick='retTrip("${c.id}")'>🔄 Return</button>
         <button class="hb hb-w" onclick='sendWA(challans.find(x=>x.id==="${c.id}"))'>📱 WA</button>
         <button class="hb hb-d" onclick='delC("${c.id}")'>🗑 Del</button>
@@ -576,6 +835,27 @@ function viewC(id){
   document.getElementById('mbg').classList.add('open');
 }
 
+function editC(id){
+  const c=challans.find(x=>x.id===id); if(!c)return;
+  // store editing id so save overwrites instead of creating new
+  editingId=id;
+  // parse stored date back to yyyy-mm-dd for the date input
+  const rawDate=c.date?c.date.split('-').reverse().join('-'):'';
+  document.getElementById('vno').value=c.vehicleNo||'';
+  document.getElementById('from').value=c.fromCity||'';
+  document.getElementById('to').value=c.toCity||'';
+  document.getElementById('occ').value=c.occasion||'';
+  document.getElementById('dt').value=rawDate;
+  mats=JSON.parse(JSON.stringify(c.materials));
+  if(c.sig){sig=c.sig;const img=document.getElementById('sigimg');img.src=sig;img.style.display='block';document.getElementById('sighint').textContent='✅ Loaded';}
+  renderMats();
+  showTab('create',document.querySelectorAll('.tab')[0]);
+  document.querySelectorAll('.tab')[1].classList.remove('on');
+  closeMod();
+  // highlight that we're in edit mode
+  document.querySelector('.b-save').textContent='💾 Update Challan';
+}
+
 function retTrip(id){
   const c=challans.find(x=>x.id===id); if(!c)return;
   document.getElementById('vno').value=c.vehicleNo;
@@ -593,9 +873,15 @@ function retTrip(id){
 
 function delC(id){
   if(!confirm('Delete this challan?'))return;
-  challans=challans.filter(x=>x.id!==id);
-  lsSet('challans',challans);
-  renderHistory();
+  if(window._firebaseReady){
+    setSyncStatus('syncing');
+    window._fsDeleteDoc(window._fsDoc(window._db,'challans',id));
+    // onSnapshot will update the list automatically
+  } else {
+    challans=challans.filter(x=>x.id!==id);
+    lsSet('challans',challans);
+    renderHistory();
+  }
 }
 
 function reset(){
@@ -605,6 +891,8 @@ function reset(){
   document.getElementById('occ').value='';
   document.getElementById('dt').value=new Date().toISOString().slice(0,10);
   mats=[]; renderMats();
+  editingId=null;
+  document.querySelector('.b-save').textContent='💾 Save';
 }
 
 function closeMod(){document.getElementById('mbg').classList.remove('open')}
@@ -614,12 +902,40 @@ if ('serviceWorker' in navigator) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('./service-worker.js')
       .then(registration => {
-        console.log('ServiceWorker registered:', registration.scope);
+        // Check for updates every time the page loads
+        registration.update();
+
+        // A new SW is waiting — show update banner
+        if (registration.waiting) showUpdateBanner(registration.waiting);
+
+        registration.addEventListener('updatefound', () => {
+          const newSW = registration.installing;
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateBanner(newSW);
+            }
+          });
+        });
       })
-      .catch(err => {
-        console.log('ServiceWorker registration failed:', err);
-      });
+      .catch(err => console.log('ServiceWorker registration failed:', err));
+
+    // When the new SW takes over, reload to get fresh app
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) { refreshing = true; window.location.reload(); }
+    });
   });
+}
+
+function showUpdateBanner(sw) {
+  const banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1e2335;border:1px solid #00c6ff;border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:12px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Noto Sans,sans-serif;font-size:13px;color:#e8eaf0;white-space:nowrap';
+  banner.innerHTML = `<span>🔄 New version available</span>
+    <button onclick="document.getElementById('update-banner').remove()" style="background:none;border:1px solid #2a3050;color:#7a84a0;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:12px">Later</button>
+    <button id="do-update" style="background:#00c6ff;border:none;color:#001520;border-radius:7px;padding:5px 12px;cursor:pointer;font-family:Rajdhani,sans-serif;font-weight:700;font-size:13px">Update Now</button>`;
+  document.body.appendChild(banner);
+  document.getElementById('do-update').onclick = () => { sw.postMessage('skipWaiting'); };
 }
 
 // Install prompt for PWA
