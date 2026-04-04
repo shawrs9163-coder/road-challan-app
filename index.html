@@ -621,10 +621,21 @@ function handleSuggest(val){
 }
 
 function pickSuggest(name, fromDrop){
-  document.getElementById('ci').value=name;
+  // immediately add the item with its unit
+  const known=CAT.find(c=>c.n.toLowerCase()===name.toLowerCase());
+  const alreadyAdded=mats.some(m=>m.n.toLowerCase()===name.toLowerCase());
+  if(alreadyAdded){ 
+    document.getElementById('ci').value='';
+    document.getElementById('suggest-drop').style.display='none';
+    renderChips('');
+    return;
+  }
+  mats.push({n:known?known.n:name, q:known?`1 ${known.u}`:'1'});
+  document.getElementById('ci').value='';
+  document.getElementById('cq').value='';
   document.getElementById('suggest-drop').style.display='none';
-  document.getElementById('cq').focus();
   renderChips('');
+  renderMats();
 }
 
 // hide dropdown when clicking outside
@@ -741,7 +752,7 @@ async function saveChallan(){
         materials:JSON.parse(JSON.stringify(mats)),sig};
       if(window._firebaseReady){
         setSyncStatus('syncing');
-        await window._fsSetDoc(window._fsDoc(window._db,'challans',updated.id), updated);
+        await window._fsSetDoc(window._fsDoc(window._db,'workspaces',wsCode,'challans',updated.id), updated);
       } else {
         challans[idx]=updated; lsSet('challans',challans);
       }
@@ -749,6 +760,8 @@ async function saveChallan(){
       alert(`✅ Updated ${updated.challanNo}`);
       editingId=null;
       document.querySelector('.b-save').textContent='💾 Save';
+      const backBtn=document.getElementById('edit-back-btn');
+      if(backBtn) backBtn.style.display='none';
     }
     return;
   }
@@ -760,7 +773,7 @@ async function saveChallan(){
     sig,createdAt:Date.now()};
   if(window._firebaseReady){
     setSyncStatus('syncing');
-    await window._fsSetDoc(window._fsDoc(window._db,'challans',c.id), c);
+    await window._fsSetDoc(window._fsDoc(window._db,'workspaces',wsCode,'challans',c.id), c);
   } else {
     challans.unshift(c); lsSet('challans',challans);
     document.getElementById('hcount').textContent=challans.length;
@@ -852,8 +865,18 @@ function editC(id){
   showTab('create',document.querySelectorAll('.tab')[0]);
   document.querySelectorAll('.tab')[1].classList.remove('on');
   closeMod();
-  // highlight that we're in edit mode
   document.querySelector('.b-save').textContent='💾 Update Challan';
+  // show back button
+  let backBtn = document.getElementById('edit-back-btn');
+  if(!backBtn){
+    backBtn = document.createElement('button');
+    backBtn.id = 'edit-back-btn';
+    backBtn.className = 'btn b-rst';
+    backBtn.innerHTML = '← Back to History';
+    backBtn.onclick = ()=>{ reset(); showTab('history', document.querySelectorAll('.tab')[1]); document.querySelectorAll('.tab')[0].classList.remove('on'); };
+    document.querySelector('.actions').appendChild(backBtn);
+  }
+  backBtn.style.display='flex';
 }
 
 function retTrip(id){
@@ -875,7 +898,7 @@ function delC(id){
   if(!confirm('Delete this challan?'))return;
   if(window._firebaseReady){
     setSyncStatus('syncing');
-    window._fsDeleteDoc(window._fsDoc(window._db,'challans',id));
+    window._fsDeleteDoc(window._fsDoc(window._db,'workspaces',wsCode,'challans',id));
     // onSnapshot will update the list automatically
   } else {
     challans=challans.filter(x=>x.id!==id);
@@ -893,6 +916,8 @@ function reset(){
   mats=[]; renderMats();
   editingId=null;
   document.querySelector('.b-save').textContent='💾 Save';
+  const backBtn=document.getElementById('edit-back-btn');
+  if(backBtn) backBtn.style.display='none';
 }
 
 function closeMod(){document.getElementById('mbg').classList.remove('open')}
