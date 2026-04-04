@@ -1,0 +1,976 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Road Challan – New Friends Electric</title>
+
+<!-- PWA Configuration -->
+<link rel="manifest" href="manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Road Challan">
+<meta name="theme-color" content="#00c6ff">
+<meta name="description" content="Create and manage road challans for New Friends Electric">
+
+<link href="https://fonts.googleapis.com/css2?family=Rajdhani:wght@600;700&family=Noto+Sans:wght@400;500;600&display=swap" rel="stylesheet"/>
+
+<!-- Firebase -->
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+import { getFirestore, collection, doc, setDoc, deleteDoc, onSnapshot, getDoc, setDoc as fsSetDoc, runTransaction } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+const firebaseConfig = {
+  apiKey: "AIzaSyCD-17_xQmS76OKAoW1lx9DPu6dhMOU3lI",
+  authDomain: "rd-chalan.firebaseapp.com",
+  projectId: "rd-chalan",
+  storageBucket: "rd-chalan.firebasestorage.app",
+  messagingSenderId: "1053172467969",
+  appId: "1:1053172467969:web:3db8d4599d8d8045157300"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getFirestore(app);
+
+// expose to global scope — paths are workspace-scoped, set after workspace is chosen
+window._db = db;
+window._fsDoc = doc;
+window._fsSetDoc = setDoc;
+window._fsDeleteDoc = deleteDoc;
+window._fsOnSnapshot = onSnapshot;
+window._fsRunTransaction = runTransaction;
+window._fsGetDoc = getDoc;
+window._fsCollection = collection;
+window._firebaseReady = true;
+
+// start sync — only if workspace already chosen (returning user)
+document.addEventListener('DOMContentLoaded', () => {
+  if(window._syncPending && window.startFirebaseSync) window.startFirebaseSync();
+});
+
+// one-time migration helper
+window.migrateLocalToFirestore = async function(db, fsDoc, fsSetDoc, wsCode){
+  const key = 'fs_migrated_'+wsCode;
+  if(localStorage.getItem(key)) return;
+  let local = [];
+  try { local = JSON.parse(localStorage.getItem('challans')||'[]'); } catch(e){}
+  if(!local.length){ localStorage.setItem(key,'1'); return; }
+  console.log(`Migrating ${local.length} challans to Firestore workspace ${wsCode}…`);
+  for(const c of local){
+    await fsSetDoc(fsDoc(db,'workspaces',wsCode,'challans',c.id), c);
+  }
+  localStorage.setItem(key,'1');
+  console.log('Migration done.');
+};
+</script>
+<style>
+:root{--bg:#0f1117;--surf:#181c27;--card:#1e2335;--border:#2a3050;--accent:#00c6ff;--gold:#f5c842;--red:#ff4e4e;--green:#25D366;--text:#e8eaf0;--muted:#7a84a0}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;min-height:100vh}
+
+/* WORKSPACE SCREEN */
+#ws-screen{position:fixed;inset:0;background:var(--bg);z-index:999;display:flex;align-items:center;justify-content:center;padding:20px}
+.ws-box{background:var(--surf);border:1px solid var(--border);border-radius:18px;padding:32px 28px;max-width:400px;width:100%;text-align:center}
+.ws-logo{font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:4px}
+.ws-logo b{color:var(--gold)}
+.ws-title{font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:var(--text);margin-bottom:6px}
+.ws-sub{font-size:13px;color:var(--muted);margin-bottom:28px;line-height:1.6}
+.ws-divider{display:flex;align-items:center;gap:10px;margin:20px 0;color:var(--muted);font-size:12px}
+.ws-divider::before,.ws-divider::after{content:'';flex:1;height:1px;background:var(--border)}
+.ws-code-display{background:var(--card);border:2px solid var(--gold);border-radius:12px;padding:16px;margin:16px 0;display:none}
+.ws-code-val{font-family:'Rajdhani',sans-serif;font-size:36px;font-weight:700;color:var(--gold);letter-spacing:4px}
+.ws-code-hint{font-size:11px;color:var(--muted);margin-top:4px}
+.ws-btn{width:100%;border:none;border-radius:10px;padding:13px;font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:10px;transition:all .15s}
+.ws-btn:hover{opacity:.9;transform:translateY(-1px)}
+.ws-btn-create{background:var(--accent);color:#001520}
+.ws-btn-join{background:var(--card);color:var(--text);border:1px solid var(--border)}
+.ws-btn-confirm{background:var(--gold);color:#111;display:none}
+.ws-input{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:10px;padding:12px 16px;font-size:20px;font-family:'Rajdhani',sans-serif;font-weight:700;letter-spacing:4px;text-align:center;outline:none;text-transform:uppercase;margin-bottom:10px;display:none}
+.ws-input:focus{border-color:var(--accent)}
+.ws-input::placeholder{letter-spacing:1px;font-size:14px;font-weight:400;text-transform:none}
+.ws-err{font-size:12px;color:var(--red);margin-top:-6px;margin-bottom:8px;display:none}
+
+/* HEADER workspace badge */
+.ws-badge{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;color:var(--gold);background:#1c1800;border:1px solid #f5c84233;border-radius:6px;padding:3px 8px;cursor:pointer;letter-spacing:1px}
+
+/* HEADER */
+.hdr{display:flex;align-items:center;justify-content:space-between;padding:12px 22px;background:var(--surf);border-bottom:1px solid var(--border);position:sticky;top:0;z-index:50}
+.logo{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:var(--accent)}
+.logo b{color:var(--gold)}
+.tabs{display:flex;gap:4px;background:var(--card);border-radius:9px;padding:3px}
+.tab{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;padding:6px 15px;border-radius:6px;border:none;cursor:pointer;color:var(--muted);background:none;transition:all .2s}
+.tab.on{background:var(--accent);color:#001520}
+
+/* VIEWS */
+.view{display:none}
+#v-create.active{display:grid;grid-template-columns:390px 1fr;min-height:calc(100vh - 50px)}
+#v-history.active{display:block;padding:22px;max-width:1100px;margin:0 auto}
+#v-quickitems.active{display:block}
+
+/* EDITOR */
+.editor{padding:22px 20px;background:var(--surf);border-right:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 50px)}
+.preview{padding:22px 20px;overflow-y:auto;max-height:calc(100vh - 50px)}
+
+/* FORM ELEMENTS */
+.sec{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin:18px 0 8px}
+.sec:first-child{margin-top:0}
+label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+input.f{width:100%;background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:9px 12px;font-size:14px;font-family:inherit;outline:none;transition:border-color .2s;margin-bottom:10px}
+input.f:focus{border-color:var(--accent)}
+.r2{display:grid;grid-template-columns:1fr 32px 1fr;gap:8px;align-items:center;margin-bottom:10px}
+.r2 input.f{margin-bottom:0}
+.swap{height:36px;width:32px;background:var(--card);border:1px solid var(--border);color:var(--gold);border-radius:8px;cursor:pointer;font-size:15px;display:flex;align-items:center;justify-content:center}
+.swap:hover{background:var(--gold);color:#111}
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+
+/* SIGNATURE UPLOAD */
+.sig-box{border:2px dashed var(--border);border-radius:10px;padding:12px 16px;text-align:center;cursor:pointer;background:var(--card);transition:border-color .2s;position:relative;margin-bottom:10px}
+.sig-box:hover{border-color:var(--accent)}
+.sig-box img{max-height:55px;max-width:220px;object-fit:contain;display:none;margin:0 auto}
+.sig-box p{font-size:12px;color:var(--muted);margin-top:4px}
+
+/* CHIPS */
+.chips{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px}
+.chip{background:var(--card);border:1px solid var(--border);border-radius:20px;padding:4px 11px;font-size:12px;cursor:pointer;color:var(--muted);transition:all .15s}
+.chip:hover{border-color:var(--accent);color:var(--accent)}
+.chip.on{border-color:var(--gold);color:var(--gold);background:#1c1800}
+
+/* MATERIAL ROWS */
+.mats{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
+.mrow{display:grid;grid-template-columns:1fr 85px 32px;gap:6px;align-items:center}
+.mf{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
+.mf:focus{border-color:var(--accent)}
+.del{width:32px;height:32px;border:1px solid #3a2020;background:none;color:var(--red);border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
+.del:hover{background:#3a2020}
+.suggest-item{padding:9px 14px;font-size:13px;color:var(--text);cursor:pointer;display:flex;justify-content:space-between;align-items:center;border-bottom:1px solid var(--border)}
+.suggest-item:last-child{border-bottom:none}
+.suggest-item:hover,.suggest-item:active{background:var(--accent);color:#001520}
+.suggest-item .sfreq{font-size:10px;opacity:0.6;font-family:'Rajdhani',sans-serif;font-weight:700}
+.suggest-item .smatch{color:var(--gold)}
+.addrow .mf{border-style:dashed}
+.addbtn{width:32px;height:32px;border:none;background:var(--gold);color:#111;border-radius:7px;cursor:pointer;font-size:20px;font-weight:700;display:flex;align-items:center;justify-content:center}
+
+/* ACTION BUTTONS */
+.actions{display:flex;gap:8px;margin-top:20px;flex-wrap:wrap}
+.btn{border:none;border-radius:9px;padding:10px 16px;font-family:'Rajdhani',sans-serif;font-size:14px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:6px;transition:all .15s}
+.btn:hover{opacity:.9;transform:translateY(-1px)}
+.b-save{background:var(--gold);color:#111}
+.b-wa{background:var(--green);color:#fff}
+.b-pdf{background:var(--accent);color:#001520}
+.b-rst{background:var(--card);color:var(--muted);border:1px solid var(--border)}
+
+/* CHALLAN PAPER */
+.plbl{font-family:'Rajdhani',sans-serif;font-size:11px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px}
+#paper{background:#fff;color:#111;border-radius:12px;padding:50px 55px;font-family:'Noto Sans',sans-serif;font-size:17px;line-height:1.8;box-shadow:0 8px 40px rgba(0,0,0,.5);max-width:800px;position:relative}
+.ph{text-align:center;margin-bottom:12px}
+.pc{font-family:'Rajdhani',sans-serif;font-size:40px;font-weight:700;color:#1a90d4}
+.ps{font-size:16px;color:#1a90d4;font-weight:600}
+.pm{font-size:15px;color:#1a90d4;line-height:1.7}
+.phr{border:none;border-top:2px solid #ccc;margin:12px 0}
+.pt{text-align:center;font-family:'Rajdhani',sans-serif;font-size:28px;font-weight:700;color:#c8980a;letter-spacing:2px;margin:12px 0 6px}
+.pn{text-align:center;font-size:13px;color:#888;font-style:italic;margin-bottom:16px}
+.challan-no-box{position:absolute;top:20px;right:30px;border:2px solid #c8980a;background:#fffef5;padding:8px 16px;border-radius:6px}
+.challan-no-label{font-size:11px;color:#666;font-weight:700;text-transform:uppercase;letter-spacing:1px;margin-bottom:2px}
+.challan-no-value{font-family:'Rajdhani',sans-serif;font-size:18px;font-weight:700;color:#c8980a;letter-spacing:1px}
+.pb p{margin-bottom:14px;font-size:18px;color:#222;line-height:1.85}
+.hl{background:#ffe87a;padding:1px 3px;border-radius:2px;font-weight:700}
+.pml{font-size:16px;font-weight:700;color:#555;margin-bottom:5px}
+.pmi{font-size:17px;color:#222;line-height:2;margin-bottom:20px}
+.pf{display:flex;justify-content:space-between;align-items:flex-end;margin-top:25px}
+.pd{font-size:16px;color:#333}
+.pns{font-size:14px;font-weight:800;color:#e00;line-height:1.5;margin-top:10px}
+.psig{text-align:center}
+.psn{font-size:12px;font-weight:800;color:#111;margin-bottom:2px}
+.psig img{max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto}
+.psr{font-size:11px;color:#555;border-top:1.5px solid #333;padding-top:3px;margin-top:3px;text-decoration:underline}
+
+/* HISTORY CARDS */
+.hgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:12px}
+.hempty{text-align:center;padding:60px 20px;color:var(--muted);font-size:15px}
+.hcard{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px}
+.hcard:hover{border-color:var(--accent)44}
+.ht{display:flex;justify-content:space-between;align-items:center;margin-bottom:9px}
+.hno{background:#0d2030;border:1px solid #00c6ff33;border-radius:18px;padding:3px 10px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;color:var(--accent);letter-spacing:1px}
+.hdt{font-size:11px;color:var(--muted)}
+.hrt{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.hcity{flex:1}
+.hcl{font-size:10px;color:var(--muted);font-weight:700;letter-spacing:1px;text-transform:uppercase}
+.hcn{font-size:14px;font-weight:700;color:var(--text)}
+.hsub{font-size:12px;color:var(--muted);margin-bottom:4px}
+.hm{font-size:11.5px;color:#b0b8d0;margin-bottom:10px;line-height:1.5}
+.hbtns{display:flex;gap:5px;border-top:1px solid var(--border);padding-top:9px}
+.hb{flex:1;border:none;border-radius:7px;padding:6px 4px;font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:4px;transition:all .15s}
+.hb:hover{opacity:.85;transform:translateY(-1px)}
+.hb-v{background:#0d2030;color:var(--accent);border:1px solid #00c6ff22}
+.hb-e{background:#0d1a2e;color:#a78bfa;border:1px solid #a78bfa22}
+.hb-r{background:#1c1800;color:var(--gold);border:1px solid #f5c84222}
+.hb-w{background:#0d2516;color:var(--green);border:1px solid #25D36622}
+.hb-d{background:#1a0a0a;color:var(--red);border:1px solid #ff4e4e22}
+
+/* MODAL */
+.mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;padding:16px}
+.mbg.open{display:flex}
+.modal{background:var(--surf);border-radius:14px;border:1px solid var(--border);padding:20px;max-width:600px;width:100%;max-height:90vh;overflow-y:auto;position:relative}
+.mx{position:absolute;top:11px;right:11px;background:var(--card);border:1px solid var(--border);color:var(--muted);width:28px;height:28px;border-radius:7px;cursor:pointer;font-size:14px;display:flex;align-items:center;justify-content:center}
+.macts{display:flex;gap:8px;margin-top:12px}
+
+@media print{
+  .hdr,.editor,.plbl,.actions,.mbg,.pn,.preview-mode{display:none!important}
+  #v-create{display:block!important}
+  .preview{padding:0;max-height:none;overflow:visible}
+  #paper{box-shadow:none;border-radius:0;max-width:100%}
+  body{background:#fff}
+}
+@media(max-width:780px){
+  #v-create.active{grid-template-columns:1fr;grid-template-rows:auto auto}
+  .editor,.preview{max-height:none}
+  .editor{border-right:none;border-bottom:1px solid var(--border)}
+}
+</style>
+</head>
+<body>
+
+<!-- WORKSPACE SETUP SCREEN -->
+<div id="ws-screen">
+  <div class="ws-box">
+    <div class="ws-logo">NEW FRIENDS <b>ELECTRIC</b></div>
+    <div class="ws-title">Road Challan</div>
+    <div class="ws-sub">Create a workspace to get started, or join an existing one with a code.</div>
+
+    <button class="ws-btn ws-btn-create" onclick="wsCreate()">🏢 Create New Workspace</button>
+
+    <div class="ws-code-display" id="ws-new-display">
+      <div style="font-size:12px;color:var(--muted);margin-bottom:8px;font-weight:700;letter-spacing:1px">YOUR WORKSPACE CODE</div>
+      <div class="ws-code-val" id="ws-new-code"></div>
+      <div class="ws-code-hint">Share this code with your team so they can join</div>
+    </div>
+
+    <button class="ws-btn ws-btn-confirm" id="ws-confirm-btn" onclick="wsConfirm()">✅ Enter Workspace</button>
+
+    <div class="ws-divider">or join existing</div>
+
+    <input class="ws-input" id="ws-join-input" placeholder="Enter workspace code" maxlength="8" oninput="this.value=this.value.toUpperCase()"/>
+    <div class="ws-err" id="ws-err">Invalid code — no workspace found</div>
+    <button class="ws-btn ws-btn-join" onclick="wsJoin()">🔗 Join Workspace</button>
+  </div>
+</div>
+
+<div class="hdr">
+  <div class="logo">NEW FRIENDS <b>ELECTRIC</b></div>
+  <div style="display:flex;align-items:center;gap:10px">
+    <span class="ws-badge" id="ws-badge" onclick="wsShowCode()" title="Your workspace code">🏢 <span id="ws-badge-code"></span></span>
+    <div id="sync-status" style="font-size:11px;font-family:'Rajdhani',sans-serif;font-weight:700;color:var(--muted);display:flex;align-items:center;gap:5px">
+      <span id="sync-dot" style="width:7px;height:7px;border-radius:50%;background:var(--muted);display:inline-block"></span>
+      <span id="sync-txt">Connecting…</span>
+    </div>
+    <div class="tabs">
+      <button class="tab on" onclick="showTab('create',this)">✏️ New Challan</button>
+      <button class="tab" onclick="showTab('history',this)">📋 History (<span id="hcount">0</span>)</button>
+      <button class="tab" onclick="showTab('quickitems',this)">⚡ Quick Items</button>
+    </div>
+  </div>
+</div>
+
+<!-- CREATE -->
+<div id="v-create" class="view active">
+  <div class="editor">
+
+    <div class="sec">Transport Details</div>
+    <label>Vehicle Number</label>
+    <input class="f" id="vno" placeholder="e.g. WB 11 F 5366" value="" oninput="render()"/>
+    <div class="r2">
+      <div><label>From</label><input class="f" id="from" placeholder="Origin" value="" oninput="render()"/></div>
+      <button class="swap" onclick="swap()" title="Flip">⇄</button>
+      <div><label>To</label><input class="f" id="to" placeholder="Destination" value="" oninput="render()"/></div>
+    </div>
+    <div class="g2">
+      <div><label>Occasion</label><input class="f" id="occ" placeholder="e.g. Mela" value="" oninput="render()"/></div>
+      <div><label>Date</label><input class="f" id="dt" type="date" oninput="render()"/></div>
+    </div>
+
+    <div class="sec">Signature</div>
+    <div class="sig-box" id="sigbox" onclick="document.getElementById('sigfile').click()">
+      <input type="file" id="sigfile" accept="image/*" style="display:none" onchange="loadSig(event)"/>
+      <img id="sigimg" src="" alt=""/>
+      <p id="sighint">📷 Tap to upload your signature image</p>
+    </div>
+
+    <div class="sec">Materials List</div>
+    <div class="mats" id="mats"></div>
+    <div class="addrow">
+      <div style="position:relative;width:100%">
+        <input class="mf" id="ci" placeholder="Type item name or pick below…" style="width:100%" oninput="handleSuggest(this.value)" autocomplete="off"/>
+        <div id="suggest-drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:0 0 8px 8px;z-index:100;max-height:180px;overflow-y:auto"></div>
+      </div>
+      <input class="mf" id="cq" placeholder="Qty" onkeydown="if(event.key==='Enter')addCustom()"/>
+      <button class="addbtn" onclick="addCustom()">+</button>
+    </div>
+    <div class="sec" style="margin-top:14px">Suggestions</div>
+    <div class="chips" id="chips"></div>
+
+    <div class="actions">
+      <button class="btn b-save" onclick="saveChallan()">💾 Save</button>
+      <button class="btn b-wa" onclick="sendWA()">📱 WhatsApp</button>
+      <button class="btn b-pdf" onclick="window.print()">🖨 Print/PDF</button>
+      <button class="btn b-rst" onclick="reset()">↺ Reset</button>
+    </div>
+  </div>
+
+  <div class="preview">
+    <div class="plbl">Live Preview</div>
+    <div id="paper"></div>
+  </div>
+</div>
+
+<!-- HISTORY -->
+<div id="v-history" class="view">
+  <div id="hist"></div>
+</div>
+
+<!-- QUICK ITEMS MANAGER -->
+<div id="v-quickitems" class="view">
+  <div style="max-width:700px;margin:0 auto;padding:22px">
+    <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:6px">⚡ Quick Add Items</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">These appear as chips in New Challan for fast material adding. Add your own or remove ones you don't need.</p>
+
+    <!-- Add new quick item -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Add New Item</div>
+      <div style="display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:center">
+        <input class="mf" id="qi-name" placeholder="Item name e.g. LED Panel" style="width:100%"/>
+        <input class="mf" id="qi-unit" placeholder="Unit e.g. Pcs"/>
+        <button class="addbtn" onclick="addQuickItem()" style="width:auto;padding:0 16px;font-size:14px;font-family:'Rajdhani',sans-serif;font-weight:700">+ Add</button>
+      </div>
+    </div>
+
+    <!-- Existing quick items list -->
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px">
+      <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Current Items (<span id="qi-count">0</span>)</div>
+      <div id="qi-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL -->
+<div class="mbg" id="mbg" onclick="if(event.target===this)closeMod()">
+  <div class="modal">
+    <button class="mx" onclick="closeMod()">✕</button>
+    <div id="mbody"></div>
+    <div class="macts" id="macts"></div>
+  </div>
+</div>
+
+<script>
+const DEFAULT_CAT=[
+  {n:'LED Board',u:'Pcs',f:6},{n:'Iron Module Gate',u:'Set',f:6},{n:'SMPS',u:'Pcs',f:6},
+  {n:'12V Transformer',u:'Pcs',f:5},{n:'Cable',u:'Coil',f:5},{n:'Aluminium Wire',u:'Coil',f:5},
+  {n:'LED Module Tree',u:'Pcs',f:4},{n:'Module Jhalar',u:'Pcs',f:4},{n:'LED Metal',u:'Pcs',f:4},{n:'12mm Wire',u:'Coil',f:4},
+  {n:'Iron Pipe',u:'Pcs',f:3},{n:'Mechanical (Full Set)',u:'Set',f:3},{n:'Ladder',u:'Pcs',f:3},
+  {n:'LED Street Light',u:'Pcs',f:2},{n:'LED Module Trolley Set',u:'Set',f:2},{n:'40W LED Tube',u:'Pcs',f:2},
+  {n:'Sodium Pole Light',u:'Pcs',f:2},{n:'Gear Box',u:'Pcs',f:2},{n:'Pole Box',u:'Pcs',f:2},
+  {n:'RGB Dropping',u:'Pcs',f:2},{n:'LED Belt',u:'Mtr',f:2},{n:'LED Diamond',u:'Pcs',f:2},
+  {n:'LED Small Bell',u:'Pcs',f:2},{n:'LED Big Bell',u:'Pcs',f:2},{n:'LED Star',u:'Pcs',f:2},
+  {n:'1.5mm Copper Wire',u:'Coil',f:2},
+  {n:'300A Panel',u:'Pcs',f:1},{n:'250W Amplifier',u:'Pcs',f:1},{n:'Iron Tast',u:'Pcs',f:1},
+  {n:'Metal Poll',u:'Pcs',f:1},{n:'1000W Twin Metal',u:'Pcs',f:1},{n:'200W LED Metal',u:'Pcs',f:1},
+  {n:'400W Metal',u:'Pcs',f:1},
+];
+let CAT=[];
+let mats=[];
+let sig='';
+let challans=[];
+let cnt=0;
+let editingId=null;
+
+// safe localStorage wrapper
+function lsGet(key,fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}catch(e){return fallback;}}
+function lsSet(key,val){try{localStorage.setItem(key,JSON.stringify(val));}catch(e){}}
+
+CAT=lsGet('quick_items',DEFAULT_CAT);
+challans=lsGet('challans',[]);
+cnt=lsGet('challan_cnt',0)||0;
+
+// init
+document.getElementById('dt').value=new Date().toISOString().slice(0,10);
+renderChips(''); renderMats(); render();
+document.getElementById('hcount').textContent=challans.length;
+
+// ── WORKSPACE ──────────────────────────────────────────────
+let wsCode = localStorage.getItem('ws_code') || null;
+
+function wsGenCode(){
+  const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  return Array.from({length:6},()=>chars[Math.floor(Math.random()*chars.length)]).join('');
+}
+
+function wsCreate(){
+  const code = wsGenCode();
+  document.getElementById('ws-new-code').textContent = code;
+  document.getElementById('ws-new-display').style.display = 'block';
+  document.getElementById('ws-confirm-btn').style.display = 'block';
+  document.getElementById('ws-confirm-btn').dataset.code = code;
+  document.getElementById('ws-join-input').style.display = 'none';
+  document.getElementById('ws-err').style.display = 'none';
+}
+
+async function wsJoin(){
+  const input = document.getElementById('ws-join-input');
+  input.style.display = 'block';
+  const code = input.value.trim().toUpperCase();
+  if(!code){ input.focus(); return; }
+  if(code.length < 4){ showWsErr('Code too short'); return; }
+  // verify workspace exists in Firestore
+  if(window._firebaseReady){
+    const snap = await window._fsGetDoc(window._fsDoc(window._db,'workspaces',code));
+    if(!snap.exists()){
+      // also accept if challans subcollection has docs (legacy)
+      showWsErr('Invalid code — no workspace found');
+      return;
+    }
+  }
+  wsEnter(code);
+}
+
+function wsConfirm(){
+  const code = document.getElementById('ws-confirm-btn').dataset.code;
+  // create workspace doc in Firestore
+  if(window._firebaseReady){
+    window._fsSetDoc(window._fsDoc(window._db,'workspaces',code),{created:Date.now(),code});
+  }
+  wsEnter(code);
+}
+
+function wsEnter(code){
+  wsCode = code;
+  localStorage.setItem('ws_code', code);
+  document.getElementById('ws-screen').style.display = 'none';
+  document.getElementById('ws-badge-code').textContent = code;
+  // now wire up Firestore paths with this workspace
+  window._challansCol = window._fsCollection(window._db,'workspaces',code,'challans');
+  window._metaDoc = window._fsDoc(window._db,'workspaces',code,'meta','counter');
+  if(window._firebaseReady) window.startFirebaseSync();
+  else window._syncPending = true;
+}
+
+function wsShowCode(){
+  alert(`Your workspace code:\n\n${wsCode}\n\nShare this with your team to sync challans.`);
+}
+
+function showWsErr(msg){
+  const el = document.getElementById('ws-err');
+  el.textContent = msg; el.style.display = 'block';
+  setTimeout(()=>el.style.display='none', 3000);
+}
+
+// ── INIT ───────────────────────────────────────────────────
+// If workspace already saved, skip the screen
+if(wsCode){
+  document.getElementById('ws-screen').style.display = 'none';
+  document.getElementById('ws-badge-code').textContent = wsCode;
+  document.addEventListener('DOMContentLoaded', ()=>{
+    if(window._firebaseReady){
+      window._challansCol = window._fsCollection(window._db,'workspaces',wsCode,'challans');
+      window._metaDoc = window._fsDoc(window._db,'workspaces',wsCode,'meta','counter');
+      window.startFirebaseSync();
+    } else {
+      window._syncPending = true;
+    }
+  });
+} else {
+  document.getElementById('ws-join-input').style.display = 'none';
+}
+
+// Firebase sync — called once workspace is set and Firebase is ready
+window.startFirebaseSync = function(){
+  setSyncStatus('syncing');
+  // one-time migration from localStorage
+  window.migrateLocalToFirestore(window._db, window._fsDoc, window._fsSetDoc, wsCode);
+  // Real-time listener: whenever Firestore changes, update local array + UI
+  window._fsOnSnapshot(window._challansCol, snapshot => {
+    challans = [];
+    snapshot.forEach(d => challans.push(d.data()));
+    // sort newest first
+    challans.sort((a,b) => (b.createdAt||0) - (a.createdAt||0));
+    lsSet('challans', challans); // keep local backup
+    document.getElementById('hcount').textContent = challans.length;
+    const activeHistory = document.getElementById('v-history').classList.contains('active');
+    if(activeHistory) renderHistory();
+    setSyncStatus('online');
+  }, err => {
+    console.error('Firestore sync error', err);
+    setSyncStatus('offline');
+  });
+};
+if(window._syncPending) window.startFirebaseSync();
+
+// sig upload
+function loadSig(e){
+  const f=e.target.files[0]; if(!f)return;
+  const r=new FileReader();
+  r.onload=ev=>{
+    sig=ev.target.result;
+    const img=document.getElementById('sigimg');
+    img.src=sig; img.style.display='block';
+    document.getElementById('sighint').textContent='✅ Loaded – tap to change';
+    render();
+  };
+  r.readAsDataURL(f);
+}
+
+// tab switch
+function showTab(t,btn){
+  document.querySelectorAll('.view').forEach(v=>{v.classList.remove('active');v.style.display='none'});
+  document.querySelectorAll('.tab').forEach(b=>b.classList.remove('on'));
+  const view=document.getElementById('v-'+t);
+  view.classList.add('active');
+  view.style.display='';
+  btn.classList.add('on');
+  if(t==='history') renderHistory();
+  if(t==='quickitems') renderQuickItems();
+}
+
+// quick items manager
+function saveCAT(){
+  lsSet('quick_items',CAT);
+  renderChips('');
+  renderQuickItems();
+}
+
+function addQuickItem(){
+  const name=document.getElementById('qi-name').value.trim();
+  const unit=document.getElementById('qi-unit').value.trim()||'Pcs';
+  if(!name){alert('Enter an item name');return;}
+  if(CAT.some(c=>c.n.toLowerCase()===name.toLowerCase())){alert('Item already exists!');return;}
+  CAT.push({n:name,u:unit});
+  saveCAT();
+  document.getElementById('qi-name').value='';
+  document.getElementById('qi-unit').value='';
+}
+
+function removeQuickItem(i){
+  if(!confirm(`Remove "${CAT[i].n}"?`))return;
+  CAT.splice(i,1);
+  saveCAT();
+}
+
+function renderQuickItems(){
+  document.getElementById('qi-count').textContent=CAT.length;
+  if(!CAT.length){
+    document.getElementById('qi-list').innerHTML=`<div style="text-align:center;padding:30px;color:var(--muted);font-size:14px">No quick items yet. Add one above!</div>`;
+    return;
+  }
+  document.getElementById('qi-list').innerHTML=CAT.map((c,i)=>`
+    <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 12px;background:var(--surf);border:1px solid var(--border);border-radius:8px;margin-bottom:8px">
+      <div>
+        <span style="font-size:14px;font-weight:600;color:var(--text)">${c.n}</span>
+        <span style="font-size:12px;color:var(--muted);margin-left:8px">· ${c.u}</span>
+      </div>
+      <button onclick="removeQuickItem(${i})" style="background:#1a0a0a;border:1px solid #ff4e4e33;color:var(--red);border-radius:7px;padding:5px 12px;cursor:pointer;font-size:12px;font-family:'Rajdhani',sans-serif;font-weight:700">🗑 Remove</button>
+    </div>`).join('');
+}
+
+// swap
+function swap(){
+  const f=document.getElementById('from'),t=document.getElementById('to');
+  [f.value,t.value]=[t.value,f.value]; render();
+}
+
+// chips — shows top items by frequency when not typing
+function renderChips(filter=''){
+  const alreadyAdded=name=>mats.some(m=>m.n.toLowerCase()===name.toLowerCase());
+  let list;
+  if(filter){
+    const f=filter.toLowerCase();
+    list=CAT.filter(c=>c.n.toLowerCase().includes(f));
+  } else {
+    // sort by frequency desc, show top 12
+    list=[...CAT].sort((a,b)=>(b.f||0)-(a.f||0)).slice(0,12);
+  }
+  const el=document.getElementById('chips');
+  if(!list.length){el.innerHTML=`<span style="font-size:12px;color:var(--muted)">No matches found</span>`;return;}
+  el.innerHTML=list.map(c=>{
+    const on=alreadyAdded(c.n);
+    const freq=c.f?`<span style="font-size:10px;opacity:0.5;margin-left:4px">×${c.f}</span>`:'';
+    return `<span class="chip${on?' on':''}" onclick="pickSuggest('${c.n.replace(/'/g,"\\'")}',false)">${c.n}${freq}</span>`;
+  }).join('');
+}
+
+// dropdown suggestion while typing
+function handleSuggest(val){
+  renderChips(val); // update chips area too
+  const drop=document.getElementById('suggest-drop');
+  const f=val.trim().toLowerCase();
+  if(!f){drop.style.display='none';return;}
+  const matches=CAT.filter(c=>c.n.toLowerCase().startsWith(f))
+    .concat(CAT.filter(c=>!c.n.toLowerCase().startsWith(f)&&c.n.toLowerCase().includes(f)))
+    .slice(0,8);
+  if(!matches.length){drop.style.display='none';return;}
+  drop.style.display='block';
+  drop.innerHTML=matches.map(c=>{
+    // bold the matching part
+    const idx=c.n.toLowerCase().indexOf(f);
+    const before=c.n.slice(0,idx);
+    const match=c.n.slice(idx,idx+f.length);
+    const after=c.n.slice(idx+f.length);
+    const freq=c.f?`<span class="sfreq">used ${c.f}×</span>`:'';
+    return `<div class="suggest-item" onclick="pickSuggest('${c.n.replace(/'/g,"\\'")}',true)">
+      <span>${before}<strong>${match}</strong>${after}</span>${freq}
+    </div>`;
+  }).join('');
+}
+
+function pickSuggest(name, fromDrop){
+  // immediately add the item with its unit
+  const known=CAT.find(c=>c.n.toLowerCase()===name.toLowerCase());
+  const alreadyAdded=mats.some(m=>m.n.toLowerCase()===name.toLowerCase());
+  if(alreadyAdded){ 
+    document.getElementById('ci').value='';
+    document.getElementById('suggest-drop').style.display='none';
+    renderChips('');
+    return;
+  }
+  mats.push({n:known?known.n:name, q:known?`1 ${known.u}`:'1'});
+  document.getElementById('ci').value='';
+  document.getElementById('cq').value='';
+  document.getElementById('suggest-drop').style.display='none';
+  renderChips('');
+  renderMats();
+}
+
+// hide dropdown when clicking outside
+document.addEventListener('click',e=>{
+  if(!e.target.closest('#ci')&&!e.target.closest('#suggest-drop')){
+    document.getElementById('suggest-drop').style.display='none';
+  }
+});
+
+// mats
+function renderMats(){
+  document.getElementById('mats').innerHTML=mats.map((m,i)=>`
+    <div class="mrow">
+      <input class="mf" value="${m.n}" oninput="mats[${i}].n=this.value;render();renderChips()"/>
+      <input class="mf" style="text-align:center" value="${m.q}" oninput="mats[${i}].q=this.value;render()"/>
+      <button class="del" onclick="mats.splice(${i},1);renderMats()">×</button>
+    </div>`).join('');
+  renderChips(''); render();
+}
+function addCustom(){
+  const n=document.getElementById('ci').value.trim(); if(!n)return;
+  const q=document.getElementById('cq').value.trim()||'';
+  // check if it matches a known item to get unit
+  const known=CAT.find(c=>c.n.toLowerCase()===n.toLowerCase());
+  mats.push({n:known?known.n:n, q:q||(known?`1 ${known.u}`:'1')});
+  document.getElementById('ci').value='';
+  document.getElementById('cq').value='';
+  document.getElementById('suggest-drop').style.display='none';
+  renderChips('');
+  renderMats();
+}
+
+function setSyncStatus(state){
+  const dot=document.getElementById('sync-dot');
+  const txt=document.getElementById('sync-txt');
+  if(state==='online'){dot.style.background='#25D366';txt.textContent='Synced';}
+  else if(state==='syncing'){dot.style.background='#f5c842';txt.textContent='Syncing…';}
+  else{dot.style.background='#ff4e4e';txt.textContent='Offline';}
+}
+
+// challan number generator — uses Firestore atomic counter so no duplicates across devices
+async function makeNo(){
+  if(!window._firebaseReady) {
+    // fallback if offline
+    cnt++; lsSet('challan_cnt',cnt);
+    const d=new Date();
+    const M=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()];
+    return `#${M}${String(d.getFullYear()).slice(2)}${String(d.getDate()).padStart(2,'0')}${String(cnt).padStart(4,'0')}`;
+  }
+  const newCnt = await window._fsRunTransaction(window._db, async tx => {
+    const snap = await tx.get(window._metaDoc);
+    const next = (snap.exists() ? snap.data().cnt : 0) + 1;
+    tx.set(window._metaDoc, {cnt: next});
+    return next;
+  });
+  cnt = newCnt;
+  const d=new Date();
+  const M=['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'][d.getMonth()];
+  return `#${M}${String(d.getFullYear()).slice(2)}${String(d.getDate()).padStart(2,'0')}${String(newCnt).padStart(4,'0')}`;
+}
+
+// format date
+function fmtDate(raw){return raw?raw.split('-').reverse().join('-'):''}
+
+// render challan paper
+function render(no){
+  const v=id=>document.getElementById(id).value.trim();
+  const matStr=mats.length?mats.map(m=>`${m.n} – ${m.q}`).join(', '):'—';
+  const sigPart=sig
+    ?`<img src="${sig}" style="max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto"/>`
+    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0;letter-spacing:1px">Rakesh Shaw</div>`;
+  document.getElementById('paper').innerHTML=`
+    <div class="challan-no-box ${no?'':'preview-mode'}"><div class="challan-no-label">Challan No.</div><div class="challan-no-value">${no||'Preview'}</div></div>
+    <div class="ph">
+      <div class="pc">New Friends Electric</div>
+      <div class="ps">(R.G. Group)</div>
+      <div class="pm">Trade Reg No.: 1774 &nbsp;|&nbsp; Electrical License No: 2022176510574</div>
+      <div class="pm">Digital Lighting Gate, Digital Lighting, Name Plate Board &amp; All Types of Electrical Decoration Light.</div>
+      <div class="pm">Bas Bagan, Kolkata, Teleni Para, West Bengal 700121 &nbsp;|&nbsp; Ph: 9143190892 / 9831470370</div>
+    </div>
+    <hr class="phr"/>
+    <div class="pt">ROAD CHALLAN</div>
+    <div class="pb">
+      <p>This is to confirm that Truck No. <span class="hl">${v('vno')||'______'}</span> transporting materials belonging to <strong>"NEW FRIENDS ELECTRIC"</strong>, based in Kolkata.</p>
+      <p>The truck is <strong>coming from <span class="hl">${v('from')||'______'}</span></strong>, and is <strong>proceeding towards <span class="hl">${v('to')||'______'}</span></strong> for the occasion of <strong>${v('occ')||'______'}</strong>.</p>
+      <p>The vehicle is carrying <strong>electrical lighting and decoration materials</strong> required for the event. This notice is provided for your kind reference and necessary action.</p>
+    </div>
+    <div class="pml">Materials:</div>
+    <div class="pmi">${matStr}</div>
+    <div class="pf">
+      <div>
+        <div class="pd">Date: - ${fmtDate(v('dt'))}</div>
+        <div class="pns" style="margin-top:8px">NOT FOR SALE<br/>ONLY DISPLAY</div>
+      </div>
+      <div class="psig">
+        ${sigPart}
+        <div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">NEW FRIENDS ELECTRIC</div>
+      </div>
+    </div>`;
+}
+
+// save
+async function saveChallan(){
+  const v=id=>document.getElementById(id).value.trim();
+  if(!v('vno')){alert('Enter vehicle number');return}
+  if(!v('from')||!v('to')){alert('Enter From and To cities');return}
+  if(!mats.length){alert('Add at least one material');return}
+
+  if(editingId){
+    const idx=challans.findIndex(x=>x.id===editingId);
+    if(idx>-1){
+      const updated={...challans[idx],vehicleNo:v('vno'),fromCity:v('from'),toCity:v('to'),
+        occasion:v('occ')||'Mela',date:fmtDate(v('dt')),
+        materials:JSON.parse(JSON.stringify(mats)),sig};
+      if(window._firebaseReady){
+        setSyncStatus('syncing');
+        await window._fsSetDoc(window._fsDoc(window._db,'workspaces',wsCode,'challans',updated.id), updated);
+      } else {
+        challans[idx]=updated; lsSet('challans',challans);
+      }
+      render(updated.challanNo);
+      alert(`✅ Updated ${updated.challanNo}`);
+      editingId=null;
+      document.querySelector('.b-save').textContent='💾 Save';
+      const backBtn=document.getElementById('edit-back-btn');
+      if(backBtn) backBtn.style.display='none';
+    }
+    return;
+  }
+
+  const no = await makeNo();
+  const c={id:Date.now().toString(),challanNo:no,vehicleNo:v('vno'),
+    fromCity:v('from'),toCity:v('to'),occasion:v('occ')||'Mela',
+    date:fmtDate(v('dt')),materials:JSON.parse(JSON.stringify(mats)),
+    sig,createdAt:Date.now()};
+  if(window._firebaseReady){
+    setSyncStatus('syncing');
+    await window._fsSetDoc(window._fsDoc(window._db,'workspaces',wsCode,'challans',c.id), c);
+  } else {
+    challans.unshift(c); lsSet('challans',challans);
+    document.getElementById('hcount').textContent=challans.length;
+  }
+  render(no);
+  alert(`✅ Saved as ${no}`);
+}
+
+// whatsapp
+function sendWA(c){
+  c=c||{challanNo:'(unsaved)',vehicleNo:document.getElementById('vno').value,
+    fromCity:document.getElementById('from').value,toCity:document.getElementById('to').value,
+    occasion:document.getElementById('occ').value||'Mela',
+    date:fmtDate(document.getElementById('dt').value),materials:mats};
+  const lines=c.materials.map(m=>`  • ${m.n||m.name} – ${m.q||m.qty}`).join('\n');
+  const msg=`🚛 *ROAD CHALLAN – New Friends Electric*\n━━━━━━━━━━━━━━━━━━━━\n📋 Challan No: ${c.challanNo}\n🚛 Vehicle: ${c.vehicleNo}\n📍 From: ${c.fromCity}\n🏁 To: ${c.toCity}\n🎪 Occasion: ${c.occasion}\n📅 Date: ${c.date}\n\n📦 *Materials:*\n${lines}\n\n━━━━━━━━━━━━━━━━━━━━\n_Trade Reg: 1774 | Lic: 2022176510574_\n_Bas Bagan, Kolkata, WB 700121_\n_Ph: 9143190892 / 9831470370_\n_NOT FOR SALE – ONLY DISPLAY_`;
+  window.open('https://wa.me/?text='+encodeURIComponent(msg),'_blank');
+}
+
+// history
+function renderHistory(){
+  document.getElementById('hcount').textContent=challans.length;
+  if(!challans.length){
+    document.getElementById('hist').innerHTML='<div class="hempty">📄 No challans yet. Create one!</div>';
+    return;
+  }
+  document.getElementById('hist').innerHTML=`<div class="hgrid">${challans.map(c=>`
+    <div class="hcard">
+      <div class="ht"><span class="hno">${c.challanNo}</span><span class="hdt">${c.date}</span></div>
+      <div class="hrt">
+        <div class="hcity"><div class="hcl">FROM</div><div class="hcn">${c.fromCity}</div></div>
+        <span style="color:var(--accent);font-size:18px">→</span>
+        <div class="hcity" style="text-align:right"><div class="hcl">TO</div><div class="hcn">${c.toCity}</div></div>
+      </div>
+      <div class="hsub">🚛 ${c.vehicleNo} &nbsp;|&nbsp; 🎪 ${c.occasion}</div>
+      <div class="hm">${c.materials.map(m=>`${m.n||m.name} (${m.q||m.qty})`).join(' · ')}</div>
+      <div class="hbtns">
+        <button class="hb hb-v" onclick='viewC("${c.id}")'>👁 View</button>
+        <button class="hb hb-e" onclick='editC("${c.id}")'>✏️ Edit</button>
+        <button class="hb hb-r" onclick='retTrip("${c.id}")'>🔄 Return</button>
+        <button class="hb hb-w" onclick='sendWA(challans.find(x=>x.id==="${c.id}"))'>📱 WA</button>
+        <button class="hb hb-d" onclick='delC("${c.id}")'>🗑 Del</button>
+      </div>
+    </div>`).join('')}</div>`;
+}
+
+function viewC(id){
+  const c=challans.find(x=>x.id===id); if(!c)return;
+  const matStr=c.materials.map(m=>`${m.n||m.name} – ${m.q||m.qty}`).join(', ');
+  const sigPart=c.sig
+    ?`<img src="${c.sig}" style="max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto"/>`
+    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0">Rakesh Shaw</div>`;
+  document.getElementById('mbody').innerHTML=`
+    <div style="background:#fff;color:#111;border-radius:10px;padding:20px 22px;font-family:'Noto Sans',sans-serif;font-size:12px;line-height:1.6">
+      <div class="ph"><div class="pc">New Friends Electric</div><div class="ps">(R.G. Group)</div>
+      <div class="pm">Trade Reg: 1774 | Lic: 2022176510574</div><div class="pm">Bas Bagan, Kolkata, WB 700121 | Ph: 9143190892</div></div>
+      <hr class="phr"/><div class="pt">ROAD CHALLAN</div>
+      <div class="pn">Challan No: ${c.challanNo}</div>
+      <div class="pb">
+        <p>Truck <span class="hl">${c.vehicleNo}</span> from <span class="hl">${c.fromCity}</span> → <span class="hl">${c.toCity}</span> for <strong>${c.occasion}</strong>.</p>
+        <p>Carrying electrical lighting &amp; decoration materials for the event.</p>
+      </div>
+      <div class="pml">Materials:</div><div class="pmi">${matStr}</div>
+      <div class="pf">
+        <div><div class="pd">Date: - ${c.date}</div><div class="pns" style="margin-top:7px">NOT FOR SALE<br/>ONLY DISPLAY</div></div>
+        <div class="psig">${sigPart}<div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">NEW FRIENDS ELECTRIC</div></div>
+      </div>
+    </div>`;
+  document.getElementById('macts').innerHTML=`
+    <button class="btn b-wa" onclick='sendWA(challans.find(x=>x.id==="${id}"))'>📱 WhatsApp</button>
+    <button class="btn b-pdf" onclick="window.print()">🖨 Print / PDF</button>`;
+  document.getElementById('mbg').classList.add('open');
+}
+
+function editC(id){
+  const c=challans.find(x=>x.id===id); if(!c)return;
+  // store editing id so save overwrites instead of creating new
+  editingId=id;
+  // parse stored date back to yyyy-mm-dd for the date input
+  const rawDate=c.date?c.date.split('-').reverse().join('-'):'';
+  document.getElementById('vno').value=c.vehicleNo||'';
+  document.getElementById('from').value=c.fromCity||'';
+  document.getElementById('to').value=c.toCity||'';
+  document.getElementById('occ').value=c.occasion||'';
+  document.getElementById('dt').value=rawDate;
+  mats=JSON.parse(JSON.stringify(c.materials));
+  if(c.sig){sig=c.sig;const img=document.getElementById('sigimg');img.src=sig;img.style.display='block';document.getElementById('sighint').textContent='✅ Loaded';}
+  renderMats();
+  showTab('create',document.querySelectorAll('.tab')[0]);
+  document.querySelectorAll('.tab')[1].classList.remove('on');
+  closeMod();
+  document.querySelector('.b-save').textContent='💾 Update Challan';
+  // show back button
+  let backBtn = document.getElementById('edit-back-btn');
+  if(!backBtn){
+    backBtn = document.createElement('button');
+    backBtn.id = 'edit-back-btn';
+    backBtn.className = 'btn b-rst';
+    backBtn.innerHTML = '← Back to History';
+    backBtn.onclick = ()=>{ reset(); showTab('history', document.querySelectorAll('.tab')[1]); document.querySelectorAll('.tab')[0].classList.remove('on'); };
+    document.querySelector('.actions').appendChild(backBtn);
+  }
+  backBtn.style.display='flex';
+}
+
+function retTrip(id){
+  const c=challans.find(x=>x.id===id); if(!c)return;
+  document.getElementById('vno').value=c.vehicleNo;
+  document.getElementById('from').value=c.toCity;
+  document.getElementById('to').value=c.fromCity;
+  document.getElementById('occ').value=c.occasion;
+  document.getElementById('dt').value=new Date().toISOString().slice(0,10);
+  mats=JSON.parse(JSON.stringify(c.materials));
+  if(c.sig){sig=c.sig;const img=document.getElementById('sigimg');img.src=sig;img.style.display='block';document.getElementById('sighint').textContent='✅ Loaded';}
+  renderMats();
+  showTab('create',document.querySelectorAll('.tab')[0]);
+  document.querySelectorAll('.tab')[1].classList.remove('on');
+  closeMod();
+}
+
+function delC(id){
+  if(!confirm('Delete this challan?'))return;
+  if(window._firebaseReady){
+    setSyncStatus('syncing');
+    window._fsDeleteDoc(window._fsDoc(window._db,'workspaces',wsCode,'challans',id));
+    // onSnapshot will update the list automatically
+  } else {
+    challans=challans.filter(x=>x.id!==id);
+    lsSet('challans',challans);
+    renderHistory();
+  }
+}
+
+function reset(){
+  document.getElementById('vno').value='';
+  document.getElementById('from').value='';
+  document.getElementById('to').value='';
+  document.getElementById('occ').value='';
+  document.getElementById('dt').value=new Date().toISOString().slice(0,10);
+  mats=[]; renderMats();
+  editingId=null;
+  document.querySelector('.b-save').textContent='💾 Save';
+  const backBtn=document.getElementById('edit-back-btn');
+  if(backBtn) backBtn.style.display='none';
+}
+
+function closeMod(){document.getElementById('mbg').classList.remove('open')}
+
+// Register Service Worker for PWA
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('./service-worker.js')
+      .then(registration => {
+        // Check for updates every time the page loads
+        registration.update();
+
+        // A new SW is waiting — show update banner
+        if (registration.waiting) showUpdateBanner(registration.waiting);
+
+        registration.addEventListener('updatefound', () => {
+          const newSW = registration.installing;
+          newSW.addEventListener('statechange', () => {
+            if (newSW.state === 'installed' && navigator.serviceWorker.controller) {
+              showUpdateBanner(newSW);
+            }
+          });
+        });
+      })
+      .catch(err => console.log('ServiceWorker registration failed:', err));
+
+    // When the new SW takes over, reload to get fresh app
+    let refreshing = false;
+    navigator.serviceWorker.addEventListener('controllerchange', () => {
+      if (!refreshing) { refreshing = true; window.location.reload(); }
+    });
+  });
+}
+
+function showUpdateBanner(sw) {
+  const banner = document.createElement('div');
+  banner.id = 'update-banner';
+  banner.style.cssText = 'position:fixed;bottom:16px;left:50%;transform:translateX(-50%);background:#1e2335;border:1px solid #00c6ff;border-radius:12px;padding:12px 18px;display:flex;align-items:center;gap:12px;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.5);font-family:Noto Sans,sans-serif;font-size:13px;color:#e8eaf0;white-space:nowrap';
+  banner.innerHTML = `<span>🔄 New version available</span>
+    <button onclick="document.getElementById('update-banner').remove()" style="background:none;border:1px solid #2a3050;color:#7a84a0;border-radius:7px;padding:4px 10px;cursor:pointer;font-size:12px">Later</button>
+    <button id="do-update" style="background:#00c6ff;border:none;color:#001520;border-radius:7px;padding:5px 12px;cursor:pointer;font-family:Rajdhani,sans-serif;font-weight:700;font-size:13px">Update Now</button>`;
+  document.body.appendChild(banner);
+  document.getElementById('do-update').onclick = () => { sw.postMessage('skipWaiting'); };
+}
+
+// Install prompt for PWA
+let deferredPrompt;
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault();
+  deferredPrompt = e;
+  // You can show an install button here if you want
+  console.log('PWA install available');
+});
+</script>
+</body>
+</html>
