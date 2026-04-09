@@ -272,7 +272,7 @@ input.f:focus{border-color:var(--accent)}
 
     <div class="ws-divider">or join existing</div>
 
-    <input class="ws-input" id="ws-join-input" placeholder="Enter workspace code" maxlength="8" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')wsJoin()"/>
+    <input class="ws-input" id="ws-join-input" placeholder="Enter workspace code" maxlength="8" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')wsJoin()" style="display:block"/>
     <div class="ws-err" id="ws-err">Invalid code — no workspace found</div>
     <button class="ws-btn ws-btn-join" id="ws-join-btn" onclick="wsJoin()">🔗 Join Existing Workspace</button>
   </div>
@@ -511,16 +511,9 @@ function wsCreate(){
 
 async function wsJoin(){
   const input = document.getElementById('ws-join-input');
-  // first click: just show the input
-  if(input.style.display === 'none'){
-    input.style.display = 'block';
-    input.focus();
-    return;
-  }
   const code = input.value.trim().toUpperCase();
-  if(!code){ showWsErr('Enter a workspace code'); return; }
+  if(!code){ showWsErr('Enter a workspace code'); input.focus(); return; }
   if(code.length < 4){ showWsErr('Code too short'); return; }
-  // just enter — if code is wrong they'll see empty history
   wsEnter(code);
 }
 
@@ -683,7 +676,7 @@ if(wsCode){
     }
   });
 } else {
-  document.getElementById('ws-join-input').style.display = 'none';
+  // show workspace screen on first load
 }
 
 // Firebase sync — called once workspace is set and Firebase is ready
