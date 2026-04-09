@@ -208,6 +208,12 @@ input.f:focus{border-color:var(--accent)}
 .hb-w{background:#0d2516;color:var(--green);border:1px solid #25D36622}
 .hb-d{background:#1a0a0a;color:var(--red);border:1px solid #ff4e4e22}
 
+/* SETTINGS */
+#v-settings.active{display:block}
+.stg-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
+.stg-sec{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;color:var(--accent);text-transform:uppercase;margin-bottom:14px}
+.stg-color{height:40px;padding:4px 6px;cursor:pointer}
+
 /* MODAL */
 .mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;padding:16px}
 .mbg.open{display:flex}
@@ -221,6 +227,22 @@ input.f:focus{border-color:var(--accent)}
   .preview{padding:0;max-height:none;overflow:visible}
   #paper{box-shadow:none;border-radius:0;max-width:100%}
   body{background:#fff}
+}
+@media print{
+  body.printing-modal *{display:none!important}
+  body.printing-modal .mbg{display:block!important;position:static!important;background:none!important;padding:0!important}
+  body.printing-modal .modal{display:block!important;border:none!important;padding:0!important;max-height:none!important;box-shadow:none!important}
+  body.printing-modal .mx,body.printing-modal .macts{display:none!important}
+  body.printing-modal #mbody{display:block!important}
+  body.printing-modal #mbody *{display:revert!important}
+}
+@media print{
+  #paper, body.printing-modal #mbody > div {
+    transform-origin: top left;
+    transform: scale(var(--print-scale, 1));
+    width: calc(100% / var(--print-scale, 1)) !important;
+  }
+  @page { margin: 8mm; size: A4; }
 }
 @media(max-width:780px){
   #v-create.active{grid-template-columns:1fr;grid-template-rows:auto auto}
@@ -250,9 +272,9 @@ input.f:focus{border-color:var(--accent)}
 
     <div class="ws-divider">or join existing</div>
 
-    <input class="ws-input" id="ws-join-input" placeholder="Enter workspace code" maxlength="8" oninput="this.value=this.value.toUpperCase()"/>
+    <input class="ws-input" id="ws-join-input" placeholder="Enter workspace code" maxlength="8" oninput="this.value=this.value.toUpperCase()" onkeydown="if(event.key==='Enter')wsJoin()" style="display:block"/>
     <div class="ws-err" id="ws-err">Invalid code — no workspace found</div>
-    <button class="ws-btn ws-btn-join" onclick="wsJoin()">🔗 Join Workspace</button>
+    <button class="ws-btn ws-btn-join" id="ws-join-btn" onclick="wsJoin()">🔗 Join Existing Workspace</button>
   </div>
 </div>
 
@@ -268,6 +290,7 @@ input.f:focus{border-color:var(--accent)}
       <button class="tab on" onclick="showTab('create',this)">✏️ New Challan</button>
       <button class="tab" onclick="showTab('history',this)">📋 History (<span id="hcount">0</span>)</button>
       <button class="tab" onclick="showTab('quickitems',this)">⚡ Quick Items</button>
+      <button class="tab" onclick="showTab('settings',this)">⚙️ Settings</button>
     </div>
   </div>
 </div>
@@ -298,21 +321,46 @@ input.f:focus{border-color:var(--accent)}
 
     <div class="sec">Materials List</div>
     <div class="mats" id="mats"></div>
-    <div class="addrow">
-      <div style="position:relative;width:100%">
-        <input class="mf" id="ci" placeholder="Type item name or pick below…" style="width:100%" oninput="handleSuggest(this.value)" autocomplete="off"/>
+    <div class="addrow" style="display:grid;grid-template-columns:1fr 70px 110px 32px;gap:6px;align-items:center">
+      <div style="position:relative">
+        <input class="mf" id="ci" placeholder="Item name…" style="width:100%" oninput="handleSuggest(this.value)" autocomplete="off"/>
         <div id="suggest-drop" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--card);border:1px solid var(--border);border-radius:0 0 8px 8px;z-index:100;max-height:180px;overflow-y:auto"></div>
       </div>
-      <input class="mf" id="cq" placeholder="Qty" onkeydown="if(event.key==='Enter')addCustom()"/>
+      <input class="mf" id="cq" placeholder="Qty" onkeydown="if(event.key==='Enter')addCustom()" style="text-align:center"/>
+      <select class="mf" id="cu" style="cursor:pointer">
+        <option>Pcs</option><option>Set</option><option>Coil</option>
+        <option>Mtr</option><option>Box</option><option>Roll</option>
+        <option>Kg</option><option>Ltr</option><option>Pair</option><option>Unit</option>
+      </select>
       <button class="addbtn" onclick="addCustom()">+</button>
     </div>
     <div class="sec" style="margin-top:14px">Suggestions</div>
     <div class="chips" id="chips"></div>
 
     <div class="actions">
+      <div style="width:100%;margin-bottom:8px">
+        <label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12px;color:var(--muted)">
+          <input type="checkbox" id="override-toggle" onchange="toggleOverride(this.checked)" style="accent-color:var(--accent)"/>
+          Customize this challan only
+        </label>
+        <div id="override-panel" style="display:none;margin-top:10px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px">
+          <div class="sec" style="margin-top:0">Per-Challan Overrides</div>
+          <div class="g2">
+            <div><label>Company Name</label><input class="f" id="o-name" oninput="render()"/></div>
+            <div><label>Sub Name</label><input class="f" id="o-sub" oninput="render()"/></div>
+          </div>
+          <label>Address</label><input class="f" id="o-addr" oninput="render()"/>
+          <label>Phone(s)</label><input class="f" id="o-phone" oninput="render()"/>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+            <div><label>Header Color</label><input type="color" class="f stg-color" id="o-c-header" oninput="render()"/></div>
+            <div><label>Title Color</label><input type="color" class="f stg-color" id="o-c-title" oninput="render()"/></div>
+            <div><label>Highlight</label><input type="color" class="f stg-color" id="o-c-hl" oninput="render()"/></div>
+          </div>
+        </div>
+      </div>
       <button class="btn b-save" onclick="saveChallan()">💾 Save</button>
       <button class="btn b-wa" onclick="sendWA()">📱 WhatsApp</button>
-      <button class="btn b-pdf" onclick="window.print()">🖨 Print/PDF</button>
+      <button class="btn b-pdf" onclick="printFit(document.getElementById('paper'))">🖨 Print/PDF</button>
       <button class="btn b-rst" onclick="reset()">↺ Reset</button>
     </div>
   </div>
@@ -348,6 +396,52 @@ input.f:focus{border-color:var(--accent)}
     <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px">
       <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Current Items (<span id="qi-count">0</span>)</div>
       <div id="qi-list"></div>
+    </div>
+  </div>
+</div>
+
+<!-- SETTINGS -->
+<div id="v-settings" class="view">
+  <div style="max-width:700px;margin:0 auto;padding:22px">
+    <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:4px">⚙️ Challan Settings</div>
+    <p style="font-size:13px;color:var(--muted);margin-bottom:22px">Changes apply to all new challans. You can also override per-challan from the New Challan form.</p>
+
+    <!-- Company Info -->
+    <div class="stg-card">
+      <div class="stg-sec">🏢 Company Info</div>
+      <div class="g2">
+        <div><label>Company Name</label><input class="f" id="s-name" oninput="saveSettings()"/></div>
+        <div><label>Sub Name (e.g. R.G. Group)</label><input class="f" id="s-sub" oninput="saveSettings()"/></div>
+      </div>
+      <label>Trade Reg No.</label><input class="f" id="s-reg" oninput="saveSettings()"/>
+      <label>Electrical License No.</label><input class="f" id="s-lic" oninput="saveSettings()"/>
+      <label>Business Description</label><input class="f" id="s-desc" oninput="saveSettings()"/>
+      <label>Address</label><input class="f" id="s-addr" oninput="saveSettings()"/>
+      <label>Phone(s)</label><input class="f" id="s-phone" oninput="saveSettings()"/>
+      <label>Signature Name (shown when no image)</label><input class="f" id="s-signame" oninput="saveSettings()"/>
+    </div>
+
+    <!-- Body Text -->
+    <div class="stg-card">
+      <div class="stg-sec">📝 Body Text</div>
+      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Use <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{vehicle}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{from}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{to}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{occasion}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{company}</code> as placeholders.</p>
+      <label>Line 1</label><input class="f" id="s-body1" oninput="saveSettings()"/>
+      <label>Line 2</label><input class="f" id="s-body2" oninput="saveSettings()"/>
+      <label>Line 3</label><input class="f" id="s-body3" oninput="saveSettings()"/>
+      <label>Footer Stamp (e.g. NOT FOR SALE)</label><input class="f" id="s-stamp" oninput="saveSettings()"/>
+      <label>Challan Title</label><input class="f" id="s-title" oninput="saveSettings()"/>
+    </div>
+
+    <!-- Colors -->
+    <div class="stg-card">
+      <div class="stg-sec">🎨 Colors</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
+        <div><label>Header Color</label><input type="color" class="f stg-color" id="s-c-header" oninput="saveSettings()"/></div>
+        <div><label>Title Color</label><input type="color" class="f stg-color" id="s-c-title" oninput="saveSettings()"/></div>
+        <div><label>Highlight Color</label><input type="color" class="f stg-color" id="s-c-hl" oninput="saveSettings()"/></div>
+        <div><label>Stamp Color</label><input type="color" class="f stg-color" id="s-c-stamp" oninput="saveSettings()"/></div>
+      </div>
+      <button class="btn b-rst" style="margin-top:12px;font-size:12px" onclick="resetSettings()">↺ Reset to Defaults</button>
     </div>
   </div>
 </div>
@@ -395,6 +489,7 @@ cnt=lsGet('challan_cnt',0)||0;
 document.getElementById('dt').value=new Date().toISOString().slice(0,10);
 renderChips(''); renderMats(); render();
 document.getElementById('hcount').textContent=challans.length;
+loadSettingsUI();
 
 // ── WORKSPACE ──────────────────────────────────────────────
 let wsCode = localStorage.getItem('ws_code') || null;
@@ -416,19 +511,9 @@ function wsCreate(){
 
 async function wsJoin(){
   const input = document.getElementById('ws-join-input');
-  input.style.display = 'block';
   const code = input.value.trim().toUpperCase();
-  if(!code){ input.focus(); return; }
+  if(!code){ showWsErr('Enter a workspace code'); input.focus(); return; }
   if(code.length < 4){ showWsErr('Code too short'); return; }
-  // verify workspace exists in Firestore
-  if(window._firebaseReady){
-    const snap = await window._fsGetDoc(window._fsDoc(window._db,'workspaces',code));
-    if(!snap.exists()){
-      // also accept if challans subcollection has docs (legacy)
-      showWsErr('Invalid code — no workspace found');
-      return;
-    }
-  }
   wsEnter(code);
 }
 
@@ -446,11 +531,21 @@ function wsEnter(code){
   localStorage.setItem('ws_code', code);
   document.getElementById('ws-screen').style.display = 'none';
   document.getElementById('ws-badge-code').textContent = code;
-  // now wire up Firestore paths with this workspace
-  window._challansCol = window._fsCollection(window._db,'workspaces',code,'challans');
-  window._metaDoc = window._fsDoc(window._db,'workspaces',code,'meta','counter');
-  if(window._firebaseReady) window.startFirebaseSync();
-  else window._syncPending = true;
+
+  function doSync(){
+    window._challansCol = window._fsCollection(window._db,'workspaces',code,'challans');
+    window._metaDoc = window._fsDoc(window._db,'workspaces',code,'meta','counter');
+    window.startFirebaseSync();
+  }
+
+  if(window._firebaseReady){
+    doSync();
+  } else {
+    // poll until Firebase module finishes loading
+    const wait = setInterval(()=>{
+      if(window._firebaseReady){ clearInterval(wait); doSync(); }
+    }, 100);
+  }
 }
 
 function wsShowCode(){
@@ -463,22 +558,135 @@ function showWsErr(msg){
   setTimeout(()=>el.style.display='none', 3000);
 }
 
+// ── SETTINGS ───────────────────────────────────────────────
+const DEFAULT_SETTINGS = {
+  name: 'New Friends Electric',
+  sub: '(R.G. Group)',
+  reg: '1774',
+  lic: '2022176510574',
+  desc: 'Digital Lighting Gate, Digital Lighting, Name Plate Board & All Types of Electrical Decoration Light.',
+  addr: 'Bas Bagan, Kolkata, Teleni Para, West Bengal 700121',
+  phone: '9143190892 / 9831470370',
+  signame: 'Rakesh Shaw',
+  body1: 'This is to confirm that Truck No. {vehicle} transporting materials belonging to "{company}", based in Kolkata.',
+  body2: 'The truck is coming from {from}, and is proceeding towards {to} for the occasion of {occasion}.',
+  body3: 'The vehicle is carrying electrical lighting and decoration materials required for the event. This notice is provided for your kind reference and necessary action.',
+  stamp: 'NOT FOR SALE\nONLY DISPLAY',
+  title: 'ROAD CHALLAN',
+  cHeader: '#1a90d4',
+  cTitle: '#c8980a',
+  cHl: '#ffe87a',
+  cStamp: '#ee0000'
+};
+
+let settings = {...DEFAULT_SETTINGS, ...lsGet('challan_settings', {})};
+
+function saveSettings(){
+  settings.name   = document.getElementById('s-name').value;
+  settings.sub    = document.getElementById('s-sub').value;
+  settings.reg    = document.getElementById('s-reg').value;
+  settings.lic    = document.getElementById('s-lic').value;
+  settings.desc   = document.getElementById('s-desc').value;
+  settings.addr   = document.getElementById('s-addr').value;
+  settings.phone  = document.getElementById('s-phone').value;
+  settings.signame= document.getElementById('s-signame').value;
+  settings.body1  = document.getElementById('s-body1').value;
+  settings.body2  = document.getElementById('s-body2').value;
+  settings.body3  = document.getElementById('s-body3').value;
+  settings.stamp  = document.getElementById('s-stamp').value;
+  settings.title  = document.getElementById('s-title').value;
+  settings.cHeader= document.getElementById('s-c-header').value;
+  settings.cTitle = document.getElementById('s-c-title').value;
+  settings.cHl    = document.getElementById('s-c-hl').value;
+  settings.cStamp = document.getElementById('s-c-stamp').value;
+  lsSet('challan_settings', settings);
+  render();
+}
+
+function loadSettingsUI(){
+  document.getElementById('s-name').value   = settings.name;
+  document.getElementById('s-sub').value    = settings.sub;
+  document.getElementById('s-reg').value    = settings.reg;
+  document.getElementById('s-lic').value    = settings.lic;
+  document.getElementById('s-desc').value   = settings.desc;
+  document.getElementById('s-addr').value   = settings.addr;
+  document.getElementById('s-phone').value  = settings.phone;
+  document.getElementById('s-signame').value= settings.signame;
+  document.getElementById('s-body1').value  = settings.body1;
+  document.getElementById('s-body2').value  = settings.body2;
+  document.getElementById('s-body3').value  = settings.body3;
+  document.getElementById('s-stamp').value  = settings.stamp;
+  document.getElementById('s-title').value  = settings.title;
+  document.getElementById('s-c-header').value= settings.cHeader;
+  document.getElementById('s-c-title').value = settings.cTitle;
+  document.getElementById('s-c-hl').value    = settings.cHl;
+  document.getElementById('s-c-stamp').value = settings.cStamp;
+}
+
+function resetSettings(){
+  if(!confirm('Reset all settings to defaults?')) return;
+  settings = {...DEFAULT_SETTINGS};
+  lsSet('challan_settings', settings);
+  loadSettingsUI();
+  render();
+}
+
+function toggleOverride(on){
+  document.getElementById('override-panel').style.display = on ? 'block' : 'none';
+  if(on){
+    // pre-fill overrides with current settings
+    document.getElementById('o-name').value   = settings.name;
+    document.getElementById('o-sub').value    = settings.sub;
+    document.getElementById('o-addr').value   = settings.addr;
+    document.getElementById('o-phone').value  = settings.phone;
+    document.getElementById('o-c-header').value = settings.cHeader;
+    document.getElementById('o-c-title').value  = settings.cTitle;
+    document.getElementById('o-c-hl').value     = settings.cHl;
+  }
+  render();
+}
+
+// get effective settings (merge override if active)
+function getS(){
+  const on = document.getElementById('override-toggle') && document.getElementById('override-toggle').checked;
+  if(!on) return settings;
+  return {
+    ...settings,
+    name:    document.getElementById('o-name').value  || settings.name,
+    sub:     document.getElementById('o-sub').value   || settings.sub,
+    addr:    document.getElementById('o-addr').value  || settings.addr,
+    phone:   document.getElementById('o-phone').value || settings.phone,
+    cHeader: document.getElementById('o-c-header').value || settings.cHeader,
+    cTitle:  document.getElementById('o-c-title').value  || settings.cTitle,
+    cHl:     document.getElementById('o-c-hl').value     || settings.cHl,
+  };
+}
+
+function applyBodyText(template, s, vno, from, to, occ){
+  return template
+    .replace(/{vehicle}/g, `<span class="hl" style="background:${s.cHl}">${vno||'______'}</span>`)
+    .replace(/{from}/g,    `<span class="hl" style="background:${s.cHl}">${from||'______'}</span>`)
+    .replace(/{to}/g,      `<span class="hl" style="background:${s.cHl}">${to||'______'}</span>`)
+    .replace(/{occasion}/g,`<strong>${occ||'______'}</strong>`)
+    .replace(/{company}/g, `<strong>${s.name}</strong>`);
+}
+
 // ── INIT ───────────────────────────────────────────────────
 // If workspace already saved, skip the screen
 if(wsCode){
   document.getElementById('ws-screen').style.display = 'none';
   document.getElementById('ws-badge-code').textContent = wsCode;
   document.addEventListener('DOMContentLoaded', ()=>{
-    if(window._firebaseReady){
+    function doSync(){
       window._challansCol = window._fsCollection(window._db,'workspaces',wsCode,'challans');
       window._metaDoc = window._fsDoc(window._db,'workspaces',wsCode,'meta','counter');
       window.startFirebaseSync();
-    } else {
-      window._syncPending = true;
     }
+    if(window._firebaseReady){ doSync(); }
+    else { const t=setInterval(()=>{ if(window._firebaseReady){clearInterval(t);doSync();} },100); }
   });
 } else {
-  document.getElementById('ws-join-input').style.display = 'none';
+  // show workspace screen on first load
 }
 
 // Firebase sync — called once workspace is set and Firebase is ready
@@ -528,6 +736,7 @@ function showTab(t,btn){
   btn.classList.add('on');
   if(t==='history') renderHistory();
   if(t==='quickitems') renderQuickItems();
+  if(t==='settings') loadSettingsUI();
 }
 
 // quick items manager
@@ -621,16 +830,31 @@ function handleSuggest(val){
 }
 
 function pickSuggest(name, fromDrop){
-  // immediately add the item with its unit
   const known=CAT.find(c=>c.n.toLowerCase()===name.toLowerCase());
-  const alreadyAdded=mats.some(m=>m.n.toLowerCase()===name.toLowerCase());
-  if(alreadyAdded){ 
-    document.getElementById('ci').value='';
+  // auto-select unit in dropdown
+  if(known){
+    const sel=document.getElementById('cu');
+    const opt=[...sel.options].find(o=>o.value===known.u);
+    sel.value = opt ? known.u : 'Pcs';
+  }
+  if(fromDrop){
+    // from dropdown: fill name, let user set qty then hit +
+    document.getElementById('ci').value=name;
     document.getElementById('suggest-drop').style.display='none';
+    document.getElementById('cq').focus();
     renderChips('');
     return;
   }
-  mats.push({n:known?known.n:name, q:known?`1 ${known.u}`:'1'});
+  // from chip: add immediately
+  const alreadyAdded=mats.some(m=>m.n.toLowerCase()===name.toLowerCase());
+  if(alreadyAdded){
+    document.getElementById('ci').value='';
+    renderChips('');
+    return;
+  }
+  const unit=document.getElementById('cu').value;
+  const qty=document.getElementById('cq').value.trim();
+  mats.push({n:known?known.n:name, q:qty?`${qty} ${unit}`:`1 ${unit}`});
   document.getElementById('ci').value='';
   document.getElementById('cq').value='';
   document.getElementById('suggest-drop').style.display='none';
@@ -647,20 +871,33 @@ document.addEventListener('click',e=>{
 
 // mats
 function renderMats(){
-  document.getElementById('mats').innerHTML=mats.map((m,i)=>`
-    <div class="mrow">
-      <input class="mf" value="${m.n}" oninput="mats[${i}].n=this.value;render();renderChips()"/>
-      <input class="mf" style="text-align:center" value="${m.q}" oninput="mats[${i}].q=this.value;render()"/>
+  const units=['Pcs','Set','Coil','Mtr','Box','Roll','Kg','Ltr','Pair','Unit'];
+  document.getElementById('mats').innerHTML=mats.map((m,i)=>{
+    // split qty and unit e.g. "3 Coil" → num="3", unit="Coil"
+    const parts=m.q.trim().split(' ');
+    const num=parts[0]||'1';
+    const unit=parts.slice(1).join(' ')||'Pcs';
+    const opts=units.map(u=>`<option${u===unit?' selected':''}>${u}</option>`).join('');
+    return `<div class="mrow" style="grid-template-columns:1fr 60px 90px 32px">
+      <input class="mf" value="${m.n}" oninput="mats[${i}].n=this.value;render();renderChips('')"/>
+      <input class="mf" style="text-align:center" value="${num}" oninput="mats[${i}].q=this.value+' '+this.closest('.mrow').querySelector('select').value;render()"/>
+      <select class="mf" style="cursor:pointer" onchange="mats[${i}].q=this.closest('.mrow').querySelector('input:nth-child(2)').value+' '+this.value;render()">${opts}</select>
       <button class="del" onclick="mats.splice(${i},1);renderMats()">×</button>
-    </div>`).join('');
+    </div>`;
+  }).join('');
   renderChips(''); render();
 }
 function addCustom(){
   const n=document.getElementById('ci').value.trim(); if(!n)return;
-  const q=document.getElementById('cq').value.trim()||'';
-  // check if it matches a known item to get unit
+  const q=document.getElementById('cq').value.trim()||'1';
+  const u=document.getElementById('cu').value;
   const known=CAT.find(c=>c.n.toLowerCase()===n.toLowerCase());
-  mats.push({n:known?known.n:n, q:q||(known?`1 ${known.u}`:'1')});
+  mats.push({n:known?known.n:n, q:`${q} ${u}`});
+  // if it's a new item not in CAT, add it to quick items automatically
+  if(!known){
+    CAT.push({n:n, u:u, f:1});
+    saveCAT();
+  }
   document.getElementById('ci').value='';
   document.getElementById('cq').value='';
   document.getElementById('suggest-drop').style.display='none';
@@ -703,36 +940,39 @@ function fmtDate(raw){return raw?raw.split('-').reverse().join('-'):''}
 // render challan paper
 function render(no){
   const v=id=>document.getElementById(id).value.trim();
+  const s=getS();
+  const vno=v('vno'), from=v('from'), to=v('to'), occ=v('occ');
   const matStr=mats.length?mats.map(m=>`${m.n} – ${m.q}`).join(', '):'—';
   const sigPart=sig
     ?`<img src="${sig}" style="max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto"/>`
-    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0;letter-spacing:1px">Rakesh Shaw</div>`;
+    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0;letter-spacing:1px">${s.signame}</div>`;
+  const stampLines = s.stamp.split('\n').join('<br/>');
   document.getElementById('paper').innerHTML=`
     <div class="challan-no-box ${no?'':'preview-mode'}"><div class="challan-no-label">Challan No.</div><div class="challan-no-value">${no||'Preview'}</div></div>
     <div class="ph">
-      <div class="pc">New Friends Electric</div>
-      <div class="ps">(R.G. Group)</div>
-      <div class="pm">Trade Reg No.: 1774 &nbsp;|&nbsp; Electrical License No: 2022176510574</div>
-      <div class="pm">Digital Lighting Gate, Digital Lighting, Name Plate Board &amp; All Types of Electrical Decoration Light.</div>
-      <div class="pm">Bas Bagan, Kolkata, Teleni Para, West Bengal 700121 &nbsp;|&nbsp; Ph: 9143190892 / 9831470370</div>
+      <div class="pc" style="color:${s.cHeader}">${s.name}</div>
+      <div class="ps" style="color:${s.cHeader}">${s.sub}</div>
+      <div class="pm" style="color:${s.cHeader}">Trade Reg No.: ${s.reg} &nbsp;|&nbsp; Electrical License No: ${s.lic}</div>
+      <div class="pm" style="color:${s.cHeader}">${s.desc}</div>
+      <div class="pm" style="color:${s.cHeader}">${s.addr} &nbsp;|&nbsp; Ph: ${s.phone}</div>
     </div>
     <hr class="phr"/>
-    <div class="pt">ROAD CHALLAN</div>
+    <div class="pt" style="color:${s.cTitle}">${s.title}</div>
     <div class="pb">
-      <p>This is to confirm that Truck No. <span class="hl">${v('vno')||'______'}</span> transporting materials belonging to <strong>"NEW FRIENDS ELECTRIC"</strong>, based in Kolkata.</p>
-      <p>The truck is <strong>coming from <span class="hl">${v('from')||'______'}</span></strong>, and is <strong>proceeding towards <span class="hl">${v('to')||'______'}</span></strong> for the occasion of <strong>${v('occ')||'______'}</strong>.</p>
-      <p>The vehicle is carrying <strong>electrical lighting and decoration materials</strong> required for the event. This notice is provided for your kind reference and necessary action.</p>
+      <p>${applyBodyText(s.body1,s,vno,from,to,occ)}</p>
+      <p>${applyBodyText(s.body2,s,vno,from,to,occ)}</p>
+      <p>${applyBodyText(s.body3,s,vno,from,to,occ)}</p>
     </div>
     <div class="pml">Materials:</div>
     <div class="pmi">${matStr}</div>
     <div class="pf">
       <div>
         <div class="pd">Date: - ${fmtDate(v('dt'))}</div>
-        <div class="pns" style="margin-top:8px">NOT FOR SALE<br/>ONLY DISPLAY</div>
+        <div class="pns" style="margin-top:8px;color:${s.cStamp}">${stampLines}</div>
       </div>
       <div class="psig">
         ${sigPart}
-        <div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">NEW FRIENDS ELECTRIC</div>
+        <div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">${s.name.toUpperCase()}</div>
       </div>
     </div>`;
 }
@@ -767,10 +1007,12 @@ async function saveChallan(){
   }
 
   const no = await makeNo();
+  const overrideOn = document.getElementById('override-toggle').checked;
   const c={id:Date.now().toString(),challanNo:no,vehicleNo:v('vno'),
     fromCity:v('from'),toCity:v('to'),occasion:v('occ')||'Mela',
     date:fmtDate(v('dt')),materials:JSON.parse(JSON.stringify(mats)),
-    sig,createdAt:Date.now()};
+    sig, settings: overrideOn ? getS() : null,
+    createdAt:Date.now()};
   if(window._firebaseReady){
     setSyncStatus('syncing');
     await window._fsSetDoc(window._fsDoc(window._db,'workspaces',wsCode,'challans',c.id), c);
@@ -822,29 +1064,37 @@ function renderHistory(){
 
 function viewC(id){
   const c=challans.find(x=>x.id===id); if(!c)return;
+  const s = c.settings || settings;
   const matStr=c.materials.map(m=>`${m.n||m.name} – ${m.q||m.qty}`).join(', ');
   const sigPart=c.sig
     ?`<img src="${c.sig}" style="max-width:320px;max-height:130px;object-fit:contain;display:block;margin:0 auto"/>`
-    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0">Rakesh Shaw</div>`;
+    :`<div style="font-family:cursive;font-size:18px;color:#333;margin:3px 0">${s.signame||'Rakesh Shaw'}</div>`;
+  const stampLines=(s.stamp||'NOT FOR SALE\nONLY DISPLAY').split('\n').join('<br/>');
+  const hl=s.cHl||'#ffe87a';
   document.getElementById('mbody').innerHTML=`
     <div style="background:#fff;color:#111;border-radius:10px;padding:20px 22px;font-family:'Noto Sans',sans-serif;font-size:12px;line-height:1.6">
-      <div class="ph"><div class="pc">New Friends Electric</div><div class="ps">(R.G. Group)</div>
-      <div class="pm">Trade Reg: 1774 | Lic: 2022176510574</div><div class="pm">Bas Bagan, Kolkata, WB 700121 | Ph: 9143190892</div></div>
-      <hr class="phr"/><div class="pt">ROAD CHALLAN</div>
+      <div class="ph">
+        <div class="pc" style="color:${s.cHeader||'#1a90d4'}">${s.name}</div>
+        <div class="ps" style="color:${s.cHeader||'#1a90d4'}">${s.sub}</div>
+        <div class="pm" style="color:${s.cHeader||'#1a90d4'}">Trade Reg: ${s.reg} | Lic: ${s.lic}</div>
+        <div class="pm" style="color:${s.cHeader||'#1a90d4'}">${s.addr} | Ph: ${s.phone}</div>
+      </div>
+      <hr class="phr"/>
+      <div class="pt" style="color:${s.cTitle||'#c8980a'}">${s.title||'ROAD CHALLAN'}</div>
       <div class="pn">Challan No: ${c.challanNo}</div>
       <div class="pb">
-        <p>Truck <span class="hl">${c.vehicleNo}</span> from <span class="hl">${c.fromCity}</span> → <span class="hl">${c.toCity}</span> for <strong>${c.occasion}</strong>.</p>
+        <p>Truck <span class="hl" style="background:${hl}">${c.vehicleNo}</span> from <span class="hl" style="background:${hl}">${c.fromCity}</span> → <span class="hl" style="background:${hl}">${c.toCity}</span> for <strong>${c.occasion}</strong>.</p>
         <p>Carrying electrical lighting &amp; decoration materials for the event.</p>
       </div>
       <div class="pml">Materials:</div><div class="pmi">${matStr}</div>
       <div class="pf">
-        <div><div class="pd">Date: - ${c.date}</div><div class="pns" style="margin-top:7px">NOT FOR SALE<br/>ONLY DISPLAY</div></div>
-        <div class="psig">${sigPart}<div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">NEW FRIENDS ELECTRIC</div></div>
+        <div><div class="pd">Date: - ${c.date}</div><div class="pns" style="margin-top:7px;color:${s.cStamp||'#ee0000'}">${stampLines}</div></div>
+        <div class="psig">${sigPart}<div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">${s.name.toUpperCase()}</div></div>
       </div>
     </div>`;
   document.getElementById('macts').innerHTML=`
     <button class="btn b-wa" onclick='sendWA(challans.find(x=>x.id==="${id}"))'>📱 WhatsApp</button>
-    <button class="btn b-pdf" onclick="window.print()">🖨 Print / PDF</button>`;
+    <button class="btn b-pdf" onclick="document.body.classList.add('printing-modal');printFit(document.querySelector('#mbody > div'));document.body.classList.remove('printing-modal')">🖨 Print / PDF</button>`;
   document.getElementById('mbg').classList.add('open');
 }
 
@@ -918,6 +1168,16 @@ function reset(){
   document.querySelector('.b-save').textContent='💾 Save';
   const backBtn=document.getElementById('edit-back-btn');
   if(backBtn) backBtn.style.display='none';
+}
+
+function printFit(el){
+  // A4 at 96dpi minus 8mm margins each side ≈ 780px usable height
+  const pageH = 1050;
+  const contentH = el.scrollHeight;
+  const scale = contentH > pageH ? (pageH / contentH) : 1;
+  document.documentElement.style.setProperty('--print-scale', scale.toFixed(4));
+  window.print();
+  document.documentElement.style.removeProperty('--print-scale');
 }
 
 function closeMod(){document.getElementById('mbg').classList.remove('open')}
