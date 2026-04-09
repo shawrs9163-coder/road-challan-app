@@ -109,7 +109,7 @@ body{background:var(--bg);color:var(--text);font-family:'Noto Sans',sans-serif;m
 #v-quickitems.active{display:block}
 
 /* EDITOR */
-.editor{padding:22px 20px;background:var(--surf);border-right:1px solid var(--border);overflow-y:auto;max-height:calc(100vh - 50px)}
+.editor{padding:22px 20px 22px 20px;background:var(--surf);border-right:1px solid var(--border);overflow-y:auto;overflow-x:visible;max-height:calc(100vh - 50px)}
 .preview{padding:22px 20px;overflow-y:auto;max-height:calc(100vh - 50px)}
 
 /* FORM ELEMENTS */
@@ -137,8 +137,8 @@ input.f:focus{border-color:var(--accent)}
 .chip.on{border-color:var(--gold);color:var(--gold);background:#1c1800}
 
 /* MATERIAL ROWS */
-.mats{display:flex;flex-direction:column;gap:6px;margin-bottom:8px}
-.mrow{display:grid;grid-template-columns:1fr 85px 32px;gap:6px;align-items:center}
+.mats{display:flex;flex-direction:column;gap:6px;margin-bottom:8px;overflow:visible}
+.mrow{display:grid;grid-template-columns:1fr 85px 32px;gap:6px;align-items:center;overflow:visible}
 .mf{background:var(--card);border:1px solid var(--border);color:var(--text);border-radius:8px;padding:7px 10px;font-size:13px;font-family:inherit;outline:none;transition:border-color .2s}
 .mf:focus{border-color:var(--accent)}
 .del{width:32px;height:32px;border:1px solid #3a2020;background:none;color:var(--red);border-radius:7px;cursor:pointer;font-size:16px;display:flex;align-items:center;justify-content:center}
@@ -210,9 +210,13 @@ input.f:focus{border-color:var(--accent)}
 
 /* SETTINGS */
 #v-settings.active{display:block}
+#v-quickitems{display:none!important}
 .stg-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:18px;margin-bottom:18px}
 .stg-sec{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;letter-spacing:2px;color:var(--accent);text-transform:uppercase;margin-bottom:14px}
 .stg-color{height:40px;padding:4px 6px;cursor:pointer}
+.stab{font-family:'Rajdhani',sans-serif;font-size:13px;font-weight:700;padding:6px 14px;border-radius:6px;border:none;cursor:pointer;color:var(--muted);background:none;transition:all .2s}
+.stab.on{background:var(--gold);color:#111}
+.stabview{display:block}
 
 /* MODAL */
 .mbg{display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:200;align-items:center;justify-content:center;padding:16px}
@@ -289,7 +293,6 @@ input.f:focus{border-color:var(--accent)}
     <div class="tabs">
       <button class="tab on" onclick="showTab('create',this)">✏️ New Challan</button>
       <button class="tab" onclick="showTab('history',this)">📋 History (<span id="hcount">0</span>)</button>
-      <button class="tab" onclick="showTab('quickitems',this)">⚡ Quick Items</button>
       <button class="tab" onclick="showTab('settings',this)">⚙️ Settings</button>
     </div>
   </div>
@@ -377,71 +380,97 @@ input.f:focus{border-color:var(--accent)}
 </div>
 
 <!-- QUICK ITEMS MANAGER -->
-<div id="v-quickitems" class="view">
-  <div style="max-width:700px;margin:0 auto;padding:22px">
-    <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:6px">⚡ Quick Add Items</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:20px">These appear as chips in New Challan for fast material adding. Add your own or remove ones you don't need.</p>
-
-    <!-- Add new quick item -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;margin-bottom:20px">
-      <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Add New Item</div>
-      <div style="display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:center">
-        <input class="mf" id="qi-name" placeholder="Item name e.g. LED Panel" style="width:100%"/>
-        <input class="mf" id="qi-unit" placeholder="Unit e.g. Pcs"/>
-        <button class="addbtn" onclick="addQuickItem()" style="width:auto;padding:0 16px;font-size:14px;font-family:'Rajdhani',sans-serif;font-weight:700">+ Add</button>
-      </div>
-    </div>
-
-    <!-- Existing quick items list -->
-    <div style="background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px">
-      <div style="font-family:'Rajdhani',sans-serif;font-size:12px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase;margin-bottom:12px">Current Items (<span id="qi-count">0</span>)</div>
-      <div id="qi-list"></div>
-    </div>
-  </div>
-</div>
+<div id="v-quickitems" class="view" style="display:none"></div>
 
 <!-- SETTINGS -->
 <div id="v-settings" class="view">
-  <div style="max-width:700px;margin:0 auto;padding:22px">
-    <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:4px">⚙️ Challan Settings</div>
-    <p style="font-size:13px;color:var(--muted);margin-bottom:22px">Changes apply to all new challans. You can also override per-challan from the New Challan form.</p>
+  <div style="max-width:760px;margin:0 auto;padding:22px">
+    <div style="font-family:'Rajdhani',sans-serif;font-size:22px;font-weight:700;color:var(--accent);margin-bottom:16px">⚙️ Settings</div>
 
-    <!-- Company Info -->
-    <div class="stg-card">
-      <div class="stg-sec">🏢 Company Info</div>
-      <div class="g2">
-        <div><label>Company Name</label><input class="f" id="s-name" oninput="saveSettings()"/></div>
-        <div><label>Sub Name (e.g. R.G. Group)</label><input class="f" id="s-sub" oninput="saveSettings()"/></div>
-      </div>
-      <label>Trade Reg No.</label><input class="f" id="s-reg" oninput="saveSettings()"/>
-      <label>Electrical License No.</label><input class="f" id="s-lic" oninput="saveSettings()"/>
-      <label>Business Description</label><input class="f" id="s-desc" oninput="saveSettings()"/>
-      <label>Address</label><input class="f" id="s-addr" oninput="saveSettings()"/>
-      <label>Phone(s)</label><input class="f" id="s-phone" oninput="saveSettings()"/>
-      <label>Signature Name (shown when no image)</label><input class="f" id="s-signame" oninput="saveSettings()"/>
+    <!-- Sub-tabs -->
+    <div style="display:flex;gap:4px;background:var(--card);border-radius:9px;padding:3px;margin-bottom:20px;width:fit-content">
+      <button class="stab on" onclick="showStab('challan',this)">📄 Challan</button>
+      <button class="stab" onclick="showStab('items',this)">⚡ Quick Items</button>
+      <button class="stab" onclick="showStab('workspace',this)">🔗 Workspace</button>
     </div>
 
-    <!-- Body Text -->
-    <div class="stg-card">
-      <div class="stg-sec">📝 Body Text</div>
-      <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Use <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{vehicle}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{from}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{to}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{occasion}</code>, <code style="background:var(--card);padding:1px 5px;border-radius:4px;color:var(--accent)">{company}</code> as placeholders.</p>
-      <label>Line 1</label><input class="f" id="s-body1" oninput="saveSettings()"/>
-      <label>Line 2</label><input class="f" id="s-body2" oninput="saveSettings()"/>
-      <label>Line 3</label><input class="f" id="s-body3" oninput="saveSettings()"/>
-      <label>Footer Stamp (e.g. NOT FOR SALE)</label><input class="f" id="s-stamp" oninput="saveSettings()"/>
-      <label>Challan Title</label><input class="f" id="s-title" oninput="saveSettings()"/>
+    <!-- TAB: Challan -->
+    <div id="stab-challan" class="stabview">
+      <div class="stg-card">
+        <div class="stg-sec">🏢 Company Info</div>
+        <div class="g2">
+          <div><label>Company Name</label><input class="f" id="s-name" oninput="saveSettings()"/></div>
+          <div><label>Sub Name (e.g. R.G. Group)</label><input class="f" id="s-sub" oninput="saveSettings()"/></div>
+        </div>
+        <label>Trade Reg No.</label><input class="f" id="s-reg" oninput="saveSettings()"/>
+        <label>Electrical License No.</label><input class="f" id="s-lic" oninput="saveSettings()"/>
+        <label>Business Description</label><input class="f" id="s-desc" oninput="saveSettings()"/>
+        <label>Address</label><input class="f" id="s-addr" oninput="saveSettings()"/>
+        <label>Phone(s)</label><input class="f" id="s-phone" oninput="saveSettings()"/>
+        <label>Signature Name (shown when no image)</label><input class="f" id="s-signame" oninput="saveSettings()"/>
+      </div>
+
+      <div class="stg-card">
+        <div class="stg-sec">📝 Body Text</div>
+        <p style="font-size:11px;color:var(--muted);margin-bottom:10px">Use <code style="background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">{vehicle}</code> <code style="background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">{from}</code> <code style="background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">{to}</code> <code style="background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">{occasion}</code> <code style="background:var(--bg);padding:1px 5px;border-radius:4px;color:var(--accent)">{company}</code> as placeholders.</p>
+        <label>Challan Title</label><input class="f" id="s-title" oninput="saveSettings()"/>
+        <label>Line 1</label><input class="f" id="s-body1" oninput="saveSettings()"/>
+        <label>Line 2</label><input class="f" id="s-body2" oninput="saveSettings()"/>
+        <label>Line 3</label><input class="f" id="s-body3" oninput="saveSettings()"/>
+        <label>Footer Stamp</label><input class="f" id="s-stamp" oninput="saveSettings()"/>
+      </div>
+
+      <div class="stg-card">
+        <div class="stg-sec">🎨 Colors & Text Size</div>
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:12px;margin-bottom:14px">
+          <div><label>Header Color</label><input type="color" class="f stg-color" id="s-c-header" oninput="saveSettings()"/></div>
+          <div><label>Title Color</label><input type="color" class="f stg-color" id="s-c-title" oninput="saveSettings()"/></div>
+          <div><label>Highlight Color</label><input type="color" class="f stg-color" id="s-c-hl" oninput="saveSettings()"/></div>
+          <div><label>Stamp Color</label><input type="color" class="f stg-color" id="s-c-stamp" oninput="saveSettings()"/></div>
+        </div>
+        <label>Body Text Size: <span id="s-fontsize-val">17</span>px</label>
+        <input type="range" id="s-fontsize" min="12" max="24" step="1" value="17" oninput="document.getElementById('s-fontsize-val').textContent=this.value;saveSettings()" style="width:100%;accent-color:var(--accent);margin-bottom:10px"/>
+        <label>Stamp Size (NOT FOR SALE): <span id="s-stampsize-val">14</span>px</label>
+        <input type="range" id="s-stampsize" min="10" max="40" step="1" value="14" oninput="document.getElementById('s-stampsize-val').textContent=this.value;saveSettings()" style="width:100%;accent-color:var(--accent);margin-bottom:10px"/>
+        <button class="btn b-rst" style="font-size:12px" onclick="resetSettings()">↺ Reset to Defaults</button>
+      </div>
     </div>
 
-    <!-- Colors -->
-    <div class="stg-card">
-      <div class="stg-sec">🎨 Colors</div>
-      <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:12px">
-        <div><label>Header Color</label><input type="color" class="f stg-color" id="s-c-header" oninput="saveSettings()"/></div>
-        <div><label>Title Color</label><input type="color" class="f stg-color" id="s-c-title" oninput="saveSettings()"/></div>
-        <div><label>Highlight Color</label><input type="color" class="f stg-color" id="s-c-hl" oninput="saveSettings()"/></div>
-        <div><label>Stamp Color</label><input type="color" class="f stg-color" id="s-c-stamp" oninput="saveSettings()"/></div>
+    <!-- TAB: Quick Items -->
+    <div id="stab-items" class="stabview" style="display:none">
+      <div class="stg-card">
+        <div class="stg-sec">Add New Item</div>
+        <div style="display:grid;grid-template-columns:1fr 120px auto;gap:8px;align-items:center">
+          <input class="mf" id="qi-name" placeholder="Item name e.g. LED Panel" style="width:100%"/>
+          <select class="mf" id="qi-unit">
+            <option>Pcs</option><option>Set</option><option>Coil</option>
+            <option>Mtr</option><option>Box</option><option>Roll</option>
+            <option>Kg</option><option>Ltr</option><option>Pair</option><option>Unit</option>
+          </select>
+          <button class="addbtn" onclick="addQuickItem()" style="width:auto;padding:0 16px;font-size:14px;font-family:'Rajdhani',sans-serif;font-weight:700">+ Add</button>
+        </div>
       </div>
-      <button class="btn b-rst" style="margin-top:12px;font-size:12px" onclick="resetSettings()">↺ Reset to Defaults</button>
+      <div class="stg-card">
+        <div class="stg-sec">Current Items (<span id="qi-count">0</span>)</div>
+        <div id="qi-list"></div>
+      </div>
+    </div>
+
+    <!-- TAB: Workspace -->
+    <div id="stab-workspace" class="stabview" style="display:none">
+      <div class="stg-card">
+        <div class="stg-sec">🔗 Your Workspace</div>
+        <p style="font-size:13px;color:var(--muted);margin-bottom:16px">Share this code with your team so they can join and see all challans in real-time.</p>
+        <div style="background:var(--bg);border:2px solid var(--gold);border-radius:12px;padding:20px;text-align:center;margin-bottom:16px">
+          <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:2px;margin-bottom:8px">WORKSPACE CODE</div>
+          <div id="ws-code-display" style="font-family:'Rajdhani',sans-serif;font-size:42px;font-weight:700;color:var(--gold);letter-spacing:6px"></div>
+          <div style="font-size:11px;color:var(--muted);margin-top:6px">Tap to copy</div>
+        </div>
+        <button class="btn b-wa" style="width:100%;justify-content:center" onclick="wsCopyCode()">📋 Copy Code</button>
+        <div style="margin-top:16px;padding-top:16px;border-top:1px solid var(--border)">
+          <button class="btn b-rst" style="width:100%;justify-content:center;color:var(--red);border-color:#ff4e4e33" onclick="wsLeave()">🚪 Leave Workspace</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -495,7 +524,9 @@ const DEFAULT_SETTINGS = {
   cHeader: '#1a90d4',
   cTitle: '#c8980a',
   cHl: '#ffe87a',
-  cStamp: '#ee0000'
+  cStamp: '#ee0000',
+  fontSize: 17,
+  stampSize: 14
 };
 let settings = {...DEFAULT_SETTINGS, ...lsGet('challan_settings', {})};
 
@@ -611,6 +642,8 @@ function saveSettings(){
   settings.cTitle = document.getElementById('s-c-title').value;
   settings.cHl    = document.getElementById('s-c-hl').value;
   settings.cStamp = document.getElementById('s-c-stamp').value;
+  settings.fontSize= parseInt(document.getElementById('s-fontsize').value)||17;
+  settings.stampSize= parseInt(document.getElementById('s-stampsize').value)||14;
   lsSet('challan_settings', settings);
   render();
 }
@@ -633,6 +666,10 @@ function loadSettingsUI(){
   document.getElementById('s-c-title').value = settings.cTitle;
   document.getElementById('s-c-hl').value    = settings.cHl;
   document.getElementById('s-c-stamp').value = settings.cStamp;
+  document.getElementById('s-fontsize').value= settings.fontSize||17;
+  document.getElementById('s-fontsize-val').textContent= settings.fontSize||17;
+  document.getElementById('s-stampsize').value= settings.stampSize||14;
+  document.getElementById('s-stampsize-val').textContent= settings.stampSize||14;
 }
 
 function resetSettings(){
@@ -748,7 +785,27 @@ function showTab(t,btn){
   btn.classList.add('on');
   if(t==='history') renderHistory();
   if(t==='quickitems') renderQuickItems();
-  if(t==='settings') loadSettingsUI();
+  if(t==='settings'){ loadSettingsUI(); showStab('challan', document.querySelector('.stab')); if(wsCode) document.getElementById('ws-code-display').textContent=wsCode; renderQuickItems(); }
+}
+
+function showStab(t, btn){
+  document.querySelectorAll('.stabview').forEach(v=>v.style.display='none');
+  document.querySelectorAll('.stab').forEach(b=>b.classList.remove('on'));
+  document.getElementById('stab-'+t).style.display='block';
+  btn.classList.add('on');
+  if(t==='items') renderQuickItems();
+  if(t==='workspace' && wsCode) document.getElementById('ws-code-display').textContent=wsCode;
+}
+
+function wsCopyCode(){
+  if(!wsCode) return;
+  navigator.clipboard.writeText(wsCode).then(()=>alert('Code copied: '+wsCode)).catch(()=>alert('Your code: '+wsCode));
+}
+
+function wsLeave(){
+  if(!confirm('Leave this workspace? You will need the code to rejoin.')) return;
+  localStorage.removeItem('ws_code');
+  location.reload();
 }
 
 // quick items manager
@@ -760,13 +817,12 @@ function saveCAT(){
 
 function addQuickItem(){
   const name=document.getElementById('qi-name').value.trim();
-  const unit=document.getElementById('qi-unit').value.trim()||'Pcs';
+  const unit=document.getElementById('qi-unit').value||'Pcs';
   if(!name){alert('Enter an item name');return;}
   if(CAT.some(c=>c.n.toLowerCase()===name.toLowerCase())){alert('Item already exists!');return;}
   CAT.push({n:name,u:unit});
   saveCAT();
   document.getElementById('qi-name').value='';
-  document.getElementById('qi-unit').value='';
 }
 
 function removeQuickItem(i){
@@ -970,17 +1026,17 @@ function render(no){
     </div>
     <hr class="phr"/>
     <div class="pt" style="color:${s.cTitle}">${s.title}</div>
-    <div class="pb">
+    <div class="pb" style="font-size:${s.fontSize||17}px">
       <p>${applyBodyText(s.body1,s,vno,from,to,occ)}</p>
       <p>${applyBodyText(s.body2,s,vno,from,to,occ)}</p>
       <p>${applyBodyText(s.body3,s,vno,from,to,occ)}</p>
     </div>
     <div class="pml">Materials:</div>
-    <div class="pmi">${matStr}</div>
+    <div class="pmi" style="font-size:${s.fontSize||17}px">${matStr}</div>
     <div class="pf">
       <div>
         <div class="pd">Date: - ${fmtDate(v('dt'))}</div>
-        <div class="pns" style="margin-top:8px;color:${s.cStamp}">${stampLines}</div>
+        <div class="pns" style="margin-top:8px;color:${s.cStamp};font-size:${s.stampSize||14}px">${stampLines}</div>
       </div>
       <div class="psig">
         ${sigPart}
@@ -1100,7 +1156,7 @@ function viewC(id){
       </div>
       <div class="pml">Materials:</div><div class="pmi">${matStr}</div>
       <div class="pf">
-        <div><div class="pd">Date: - ${c.date}</div><div class="pns" style="margin-top:7px;color:${s.cStamp||'#ee0000'}">${stampLines}</div></div>
+        <div><div class="pd">Date: - ${c.date}</div><div class="pns" style="margin-top:7px;color:${s.cStamp||'#ee0000'};font-size:${s.stampSize||14}px">${stampLines}</div></div>
         <div class="psig">${sigPart}<div style="font-size:14px;font-weight:700;color:#333;margin-top:6px;letter-spacing:0.5px">${s.name.toUpperCase()}</div></div>
       </div>
     </div>`;
