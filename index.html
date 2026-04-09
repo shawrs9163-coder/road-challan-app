@@ -510,10 +510,13 @@ function wsCreate(){
 }
 
 async function wsJoin(){
+  console.log('wsJoin called');
   const input = document.getElementById('ws-join-input');
   const code = input.value.trim().toUpperCase();
+  console.log('Code entered:', code);
   if(!code){ showWsErr('Enter a workspace code'); input.focus(); return; }
   if(code.length < 4){ showWsErr('Code too short'); return; }
+  console.log('Calling wsEnter with code:', code);
   wsEnter(code);
 }
 
@@ -527,23 +530,32 @@ function wsConfirm(){
 }
 
 function wsEnter(code){
+  console.log('wsEnter called with:', code);
   wsCode = code;
   localStorage.setItem('ws_code', code);
+  console.log('Hiding workspace screen');
   document.getElementById('ws-screen').style.display = 'none';
   document.getElementById('ws-badge-code').textContent = code;
 
   function doSync(){
+    console.log('doSync called, setting up Firebase paths');
     window._challansCol = window._fsCollection(window._db,'workspaces',code,'challans');
     window._metaDoc = window._fsDoc(window._db,'workspaces',code,'meta','counter');
+    console.log('Starting Firebase sync');
     window.startFirebaseSync();
   }
 
   if(window._firebaseReady){
+    console.log('Firebase ready, syncing immediately');
     doSync();
   } else {
-    // poll until Firebase module finishes loading
+    console.log('Firebase not ready, polling...');
     const wait = setInterval(()=>{
-      if(window._firebaseReady){ clearInterval(wait); doSync(); }
+      if(window._firebaseReady){ 
+        console.log('Firebase ready after polling');
+        clearInterval(wait); 
+        doSync(); 
+      }
     }, 100);
   }
 }
