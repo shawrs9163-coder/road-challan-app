@@ -476,6 +476,28 @@ let sig='';
 let challans=[];
 let cnt=0;
 let editingId=null;
+let wsCode = localStorage.getItem('ws_code') || null;
+
+const DEFAULT_SETTINGS = {
+  name: 'New Friends Electric',
+  sub: '(R.G. Group)',
+  reg: '1774',
+  lic: '2022176510574',
+  desc: 'Digital Lighting Gate, Digital Lighting, Name Plate Board & All Types of Electrical Decoration Light.',
+  addr: 'Bas Bagan, Kolkata, Teleni Para, West Bengal 700121',
+  phone: '9143190892 / 9831470370',
+  signame: 'Rakesh Shaw',
+  body1: 'This is to confirm that Truck No. {vehicle} transporting materials belonging to "{company}", based in Kolkata.',
+  body2: 'The truck is coming from {from}, and is proceeding towards {to} for the occasion of {occasion}.',
+  body3: 'The vehicle is carrying electrical lighting and decoration materials required for the event. This notice is provided for your kind reference and necessary action.',
+  stamp: 'NOT FOR SALE\nONLY DISPLAY',
+  title: 'ROAD CHALLAN',
+  cHeader: '#1a90d4',
+  cTitle: '#c8980a',
+  cHl: '#ffe87a',
+  cStamp: '#ee0000'
+};
+let settings = {...DEFAULT_SETTINGS, ...lsGet('challan_settings', {})};
 
 // safe localStorage wrapper
 function lsGet(key,fallback){try{const v=localStorage.getItem(key);return v?JSON.parse(v):fallback;}catch(e){return fallback;}}
@@ -492,7 +514,6 @@ document.getElementById('hcount').textContent=challans.length;
 loadSettingsUI();
 
 // ── WORKSPACE ──────────────────────────────────────────────
-let wsCode = localStorage.getItem('ws_code') || null;
 
 function wsGenCode(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -571,27 +592,6 @@ function showWsErr(msg){
 }
 
 // ── SETTINGS ───────────────────────────────────────────────
-const DEFAULT_SETTINGS = {
-  name: 'New Friends Electric',
-  sub: '(R.G. Group)',
-  reg: '1774',
-  lic: '2022176510574',
-  desc: 'Digital Lighting Gate, Digital Lighting, Name Plate Board & All Types of Electrical Decoration Light.',
-  addr: 'Bas Bagan, Kolkata, Teleni Para, West Bengal 700121',
-  phone: '9143190892 / 9831470370',
-  signame: 'Rakesh Shaw',
-  body1: 'This is to confirm that Truck No. {vehicle} transporting materials belonging to "{company}", based in Kolkata.',
-  body2: 'The truck is coming from {from}, and is proceeding towards {to} for the occasion of {occasion}.',
-  body3: 'The vehicle is carrying electrical lighting and decoration materials required for the event. This notice is provided for your kind reference and necessary action.',
-  stamp: 'NOT FOR SALE\nONLY DISPLAY',
-  title: 'ROAD CHALLAN',
-  cHeader: '#1a90d4',
-  cTitle: '#c8980a',
-  cHl: '#ffe87a',
-  cStamp: '#ee0000'
-};
-
-let settings = {...DEFAULT_SETTINGS, ...lsGet('challan_settings', {})};
 
 function saveSettings(){
   settings.name   = document.getElementById('s-name').value;
